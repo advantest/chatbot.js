@@ -1,7 +1,7 @@
 // @ts-check
 import * as chatbot from './chatbot.core.js';
 
-describe('chatbot.test.js', () => {
+describe('chatbot.core.test.js', () => {
 
 	test('hi', async () => {
 
@@ -28,17 +28,19 @@ describe('chatbot.test.js', () => {
 
 		await chat.send('msg1');
 		expect(log.length).toBe(3);
-		expect(log[0].length).toBe(1);
+		expect(log[0].length).toBe(2);
 		expect(log[0][0].action).toBe('add');
 		expect(log[0][0].msgObj.content).toBe('msg1');
+		expect(log[0][1].action).toBe('sent');
 		expect(log[1][0].action).toBe('add');
 		expect(log[1][0].msgObj.content).toBe('MSG1');
 
 		await chat.send('msg2');
 		expect(log.length).toBe(6);
-		expect(log[3].length).toBe(1);
+		expect(log[3].length).toBe(2);
 		expect(log[3][0].action).toBe('add');
 		expect(log[3][0].msgObj.content).toBe('msg2');
+		expect(log[3][1].action).toBe('sent');
 		expect(log[4][0].action).toBe('add');
 		expect(log[4][0].msgObj.content).toBe('MSG2');
 	});

@@ -1,7 +1,7 @@
 // @ts-check
 import { resolve, toHtml } from './chatbot.ui.md.js';
 
-describe('chatbot.ui.md.js', () => {
+describe('chatbot.ui.md.test.js', () => {
 
 	test('resolve - basic', async () => {
 		const toTest= [

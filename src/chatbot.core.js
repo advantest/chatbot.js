@@ -48,11 +48,12 @@ const STREAM= true;
  */
 
 /**
- * @typedef {Record<string, unknown> & { action: 'add' | 'readyToSend' | 'update' | 'received' | 'reset' | string,
- *                                       msgObj: MessageObject | undefined,
- *                                       property?: 'content' | 'role' | 'contentWithRefs' | string | undefined,
- *                                       value?: any | undefined,
- *                                       end?: boolean}} Change
+ * @typedef {Record<string, unknown> &
+ *           {action: 'add' | 'readyToSend' | 'update' | 'sent' | 'received' | 'reset' | string,
+ *            msgObj: MessageObject | undefined,
+ *            property?: 'content' | 'role' | 'contentWithRefs' | string | undefined,
+ *            value?: any | undefined,
+ *            end?: boolean}} Change
  */
 
 /**
@@ -70,10 +71,7 @@ export function chatbot(urlOrConfig) {
 
 		// Add user message
 		if (typeof msg === 'string') {
-			const msgObj= _apply(chatbot, msg, undefined, false, true);
-			if (options && msgObj) {
-				msgObj.options= options;
-			}
+			_apply(chatbot, msg, undefined, false, true, undefined, undefined, undefined, undefined, undefined, options);
 		}
 
 		// Add msgObj to receive content via callback
@@ -145,12 +143,16 @@ export function chatbot(urlOrConfig) {
 	 * @param {boolean} [refsDone]
 	 * @param {boolean} [reset]
 	 * @param {boolean} [init]
+	 * @param {Record<string, unknown>} [options]
 	 * @returns {MessageObject}
 	 */
-	function _apply(chatbot, delta, msgObj, receive, done, refs, refsDelta, refsDone, reset, init) {
+	function _apply(chatbot, delta, msgObj, receive, done, refs, refsDelta, refsDone, reset, init, options) {
 		const target= msgObj === undefined ? { role: receive ? 'assistant' : 'user', content: delta } : msgObj;
 		if (refs !== undefined) {
 			target.refs= refs;
+		}
+		if (options !== undefined) {
+			target.options= options;
 		}
 
 		/** @type {Array.<Change>} */
@@ -186,8 +188,8 @@ export function chatbot(urlOrConfig) {
 			changes.push({ action: 'reset', msgObj: undefined });
 		}
 
-		if (done && receive && delta === undefined) {
-			changes.push({ action: 'received', msgObj: target, end: true });
+		if (done) {
+			changes.push({ action: receive ? 'received' : 'sent', msgObj: target, end: true });
 		}
 
 		_observers.forEach(observer => observer.update(changes));

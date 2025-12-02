@@ -189,6 +189,7 @@ export function chatbotUi(chatbot, parent, config) {
 		}
 
 	});
+	const optionsElements= [];
 	const chatScopeOptions= [];
 	if (options.length) {
 		const optionsArea= createElement(form, 'div', 'options')
@@ -222,10 +223,27 @@ export function chatbotUi(chatbot, parent, config) {
 				return false;
 			}
 			addEvent(button, 'click', toggleDropdown);
-			toMenu(button, itemElements, opt.values, value => {
+			function chooseFn(value, silent) {
 				selected[opt.id]= value.value;
 				button.textContent= value.label ? value.label : value.value;
-				openDropdown();
+				if (!silent) {
+					openDropdown();
+				}
+			}
+			toMenu(button, itemElements, opt.values, chooseFn);
+			optionsElements.push({
+				reset: (function(id, values) {
+					return function(options) {
+						var newValue= options ? options[id] : undefined;
+						for (var j= 0; j < values.length; j++) {
+						var newValue= options ? options[id] : undefined;
+							if (newValue == values[j].value || (newValue === undefined && values[j].default)) {
+								chooseFn(values[j], true);
+								return;
+							}
+						}
+					};
+				})(opt.id, opt.values)
 			});
 			if (opt.scope == 'chat') {
 				chatScopeOptions.push(button);
@@ -394,6 +412,10 @@ export function chatbotUi(chatbot, parent, config) {
 					streamElement.parentNode.className+= ' ' + CLASS_PREFIX + 'ref-done';
 				}
 				_resizeAndScroll(false, true, false, streamElement, false);
+			} else if (change.action == 'sent') {
+				if (change.msgObj) {
+					optionsElements.forEach(element => element.reset(change.msgObj.options));
+				}
 			}
 		});
 		for (optionElement of chatScopeOptions) {
