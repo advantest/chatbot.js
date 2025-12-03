@@ -83,6 +83,10 @@ export function chatbotUi(chatbot, parent, config) {
 	const scroll= createElement(main, 'div', 'scroll');
 	const sticky= createElement(main, 'div', 'sticky');
 	const title= createElement(scroll, 'h1', 'title', getConfigString('title'));
+	const titleHtml= getConfigString('titleHtml');
+	if (titleHtml) {
+		title.innerHTML= titleHtml;
+	}
 	const _msgArea= createElement(createElement(scroll, 'div', 'chat-area'), 'div', 'chat');
 	const options= chatbot.getOptions();
 	const selected= {};
