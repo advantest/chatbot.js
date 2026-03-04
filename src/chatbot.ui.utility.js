@@ -14,7 +14,6 @@ export function createElement(parent, name, className, text) {
 	var element = document.createElement(name ? name : 'div');
 	if (parent) {
 		parent.appendChild(element);
-
 	}
 	if (className) {
 		setClassName(element, className);

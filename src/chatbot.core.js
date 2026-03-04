@@ -8,15 +8,15 @@ const STREAM= true;
  * @typedef {Object} Chatbot
  * @property {Array.<MessageObject>} messages
  * @property {ChatbotConfig} config
- * @property {(message: string, options?: Record<string, unknown>) => Promise<void>} send
+ * @property {(message: string, options?: Record<string, unknown>) => Promise<unknown>} send
  * @property {function(Observer): void} observe
  * @property {(messages?: Array.<MessageObject>, send?: boolean) => void} reset
- * @property {() => Array.<Record<string, unknown>>} getOptions
+ * @property {() => Promise<Array.<Record<string, unknown>>>} getOptions
  * @property {(url: string,
- *             callback: (data: Record<string, unknown> | undefined, done: boolean) => void,
+ *             callback?: (data: Record<string, unknown> | undefined, done: boolean) => void,
  *             postData?: string | undefined,
  *             asStream?: boolean | undefined)
- *            => Promise<void>} sendHttpRequest - Helper function that can be used to create a custom {@link Connector}
+ *            => Promise<unknown>} sendHttpRequest - Helper function that can be used to create a custom {@link Connector}
  */
 
 /**
@@ -29,9 +29,9 @@ const STREAM= true;
  * @property {Record<string, unknown> | function | string} [baseRequestData]
  * @property {Connector} [connector]
  * @property {(message: string, chatbot: Chatbot,
- *             rawSendFn: ((message: string, options?: Record<string, unknown>) => Promise<void>),
- *             options?: Record<string, unknown>) => Promise<void>} [sendHook]
- * @property {Array.<Record<string, unknown>>} [options]
+ *             rawSendFn: ((message: string, options?: Record<string, unknown>) => Promise<unknown>),
+ *             options?: Record<string, unknown>) => Promise<unknown>} [sendHook]
+ * @property {Array.<Record<string, unknown>> | string | function} [options]
  */
 
 /**
@@ -123,7 +123,7 @@ export function chatbot(urlOrConfig) {
 
 		}
 		const requestUrl= typeof chatbot.config.url === 'string' ? chatbot.config.url : DEFAULT_URL;
-		const baseRequest= typeof urlOrConfig === 'object' && urlOrConfig.baseRequestData
+		const baseRequest= urlOrConfig !== null && typeof urlOrConfig === 'object' && urlOrConfig.baseRequestData
 			? urlOrConfig.baseRequestData : {};
 		const requestStr= _toRequestStr(chatbot, baseRequest, requestUrl, STREAM);
 		return chatbot.sendHttpRequest(requestUrl, callback, requestStr, STREAM);
@@ -208,10 +208,11 @@ export function chatbot(urlOrConfig) {
 	 */
 	function _toRequestStr(chatbot, request, url, asStream) {
 		const requestFnResult= typeof request === 'function' ? request(chatbot, url, asStream) : undefined;
-		return typeof request === 'string' ? request :
-			typeof request === 'function' ? (typeof requestFnResult === 'object' ? JSON.stringify(requestFnResult) :
-				'' + requestFnResult) :
-				JSON.stringify(_createRequest(chatbot, request === undefined ? {} : request, asStream));
+        return typeof request === 'string' ? request :
+            typeof request === 'function' ? (requestFnResult !== null && typeof requestFnResult === 'object' ?
+                JSON.stringify(requestFnResult) :
+                '' + requestFnResult) :
+                JSON.stringify(_createRequest(chatbot, request === undefined ? {} : request, asStream));
 	}
 
 	/**
@@ -255,6 +256,18 @@ export function chatbot(urlOrConfig) {
 		}
 	}
 
+	/**
+	 * @param {unknown} data
+	 * @returns {Array.<Record<string, unknown>>}
+	 */
+    function toOptions(data) {
+        if (!Array.isArray(data)) return [];
+        const isValidArray = data.every(item =>
+            item !== null && typeof item === 'object' && !Array.isArray(item)
+        );
+        return isValidArray ? data : [];
+    }
+
 	return {
 
 		messages: [],
@@ -262,13 +275,28 @@ export function chatbot(urlOrConfig) {
 		config: typeof urlOrConfig === 'string' ? { url: urlOrConfig } :
 			typeof urlOrConfig === 'object' ? urlOrConfig : {},
 
-		getOptions() {
-			return this.config.options !== undefined ? this.config.options : [];
+		async getOptions() {
+			if (this.config.options !== null && typeof this.config.options === 'object') {
+				return new Promise((resolve) => { resolve(toOptions(this.config.options)); });
+			}
+			if (typeof this.config.options === 'string') {
+                const data = await sendHttpRequest(this.config.options);
+				return toOptions(data);
+			}
+			if (typeof this.config.options === 'function') {
+                const result = this.config.options(this);
+				if (result instanceof Promise) {
+					const resultData = await result;
+					return toOptions(resultData);
+				}
+				return new Promise((resolve) => { resolve(toOptions(result)); });
+			}
+			return new Promise((resolve) => { resolve([]); });
 		},
 
 		send(msg, options) {
 			if (this.config.sendHook !== undefined) {
-				/** @type {(message: string, options?: Record<string, unknown>) => Promise<void>} */
+				/** @type {(message: string, options?: Record<string, unknown>) => Promise<unknown>} */
 				const rawSendFn= (function(chatbot) {
 					return function(msg, options) {return _send(chatbot, msg, options)};
 				})(this);

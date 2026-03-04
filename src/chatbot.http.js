@@ -2,10 +2,10 @@
 
 /**
  * @param {string} url
- * @param {(data: Record<string, unknown>|undefined, done: boolean) => void} callback
+ * @param {(data: Record<string, unknown>|undefined, done: boolean) => void} [callback]
  * @param {string} [postData]
  * @param {boolean} [asStream]
- * @returns {Promise<void>}
+ * @returns {Promise<unknown>}
  */
 export function sendHttpRequest(url, callback, postData, asStream) {
 	return new Promise(function(resolve /*, reject - TODO: error handling*/) {
@@ -30,9 +30,12 @@ export function sendHttpRequest(url, callback, postData, asStream) {
 				var dataStr= '';
 				reader.read().then(function(data) {
 					dataStr += decoder.decode(data.value);
-					callback(JSON.parse(dataStr), true);
+					const dataObj= JSON.parse(dataStr);
+					if (callback !== undefined) {
+						callback(dataObj, true);
+					}
+					resolve(dataObj);
 				});
-				resolve();
 				return;
 			}
 
@@ -40,8 +43,10 @@ export function sendHttpRequest(url, callback, postData, asStream) {
 			let buffer = '';
 			return reader.read().then(function processChunk({ done, value }) {
 				if (done) {
-					callback(undefined, true);
-					resolve();
+					if (callback !== undefined) {
+						callback(undefined, true);
+					}
+					resolve(undefined);
 					return;
 				}
 				buffer += decoder.decode(value, { stream: true });
@@ -50,7 +55,7 @@ export function sendHttpRequest(url, callback, postData, asStream) {
 					const line = buffer.slice(0, boundary);
 					buffer = buffer.slice(boundary + 1);
 					try {
-						if (line.indexOf('data:') == 0 && line != 'data: [DONE]') {
+						if (line.indexOf('data:') == 0 && line != 'data: [DONE]' && callback !== undefined) {
 							callback(JSON.parse(line.substring('data:'.length)), done);
 						}
 					} catch (e) {

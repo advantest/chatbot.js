@@ -33,31 +33,6 @@ const DONE_DELAY= 2000; // in milliseconds; time of showing that an action like 
  */
 export function chatbotUi(chatbot, parent, config) {
 
-	/**
-	 * @param {string} prop
-	 */
-	function getConfigString(prop, defaultValue) {
-		return config && typeof config[prop] === 'string' ? config[prop] : (defaultValue ? defaultValue : '');
-	}
-
-	/**
-	 * @param {Element} parent
-	 * @param {string} id
-	 * @param {string} defaultSvg
-	 * @param {string} [defaultHover]
-	 * @returns {Element}
-	 */
-	function createBtn(parent, id, defaultSvg, defaultHover) {
-		const btn= createElement(parent, 'button', 'btn ' + id);
-		btn.innerHTML= getConfigString(id + 'Btn', defaultSvg);
-		if (defaultHover) {
-			const hover= getConfigString(id + 'Hover', defaultHover);
-			btn.alt= getConfigString(id + 'Alt', hover);
-			btn.title= getConfigString(id + 'Title', hover);
-		}
-		return btn;
-	}
-
 	let _isSplash= true;
 	let _isReadyToSend= true;
 	let _isTypeEverywhere= false;
@@ -88,9 +63,8 @@ export function chatbotUi(chatbot, parent, config) {
 		title.innerHTML= titleHtml;
 	}
 	const _msgArea= createElement(createElement(scroll, 'div', 'chat-area'), 'div', 'chat');
-	const options= chatbot.getOptions();
 	const selected= {};
-	const form= createElement(createElement(sticky, 'div', 'form-area'), 'form', 'form' + (options.length ? ' o' : ''));
+	const form= createElement(createElement(sticky, 'div', 'form-area'), 'form', 'form');
 	const _input= createElement(form, 'textarea', 'input');
 
 	const _map= new Map();
@@ -193,70 +167,13 @@ export function chatbotUi(chatbot, parent, config) {
 		}
 
 	});
-	const optionsElements= [];
-	const chatScopeOptions= [];
-	if (options.length) {
-		const optionsArea= createElement(form, 'div', 'options')
-		for (const opt of options) {
-			const select= createElement(optionsArea, 'div', 'select');
-			let label;
-			for (const item of opt.values) {
-				if (!label || item.default) {
-					label= item.label ? item.label : item.value;
-					if (item.default) break;
-				}
-			}
-			const button= createElement(select, 'button', 'btn ' + opt.id, label);
-			if (typeof opt.description === 'string') {
-				button.alt= opt.description;
-				button.title= opt.description;
-			}
-			const dropdown= createElement(select, 'div', 'items');
-			const itemElements= [];
-			for (const item of opt.values) {
-				itemElements.push(createElement(dropdown, 'button', undefined, item.label ? item.label : item.value));
-			}
-			dropdown.style.display= 'none';
-			function openDropdown(state) {
-				dropdown.style.display= state ? 'block' : 'none';
-				setClassName(select, 'select' + (state ? ' o' : ''));
-			}
-			function toggleDropdown(e) {
-				openDropdown(dropdown.style.display == 'none');
-				preventDefault(e);
-				return false;
-			}
-			addEvent(button, 'click', toggleDropdown);
-			function chooseFn(value, silent) {
-				selected[opt.id]= value.value;
-				button.textContent= value.label ? value.label : value.value;
-				if (!silent) {
-					openDropdown();
-				}
-			}
-			toMenu(button, itemElements, opt.values, chooseFn);
-			optionsElements.push({
-				reset: (function(id, values) {
-					return function(options) {
-						var newValue= options ? options[id] : undefined;
-						for (var j= 0; j < values.length; j++) {
-						var newValue= options ? options[id] : undefined;
-							if (newValue == values[j].value || (newValue === undefined && values[j].default)) {
-								chooseFn(values[j], true);
-								return;
-							}
-						}
-					};
-				})(opt.id, opt.values)
-			});
-			if (opt.scope == 'chat') {
-				chatScopeOptions.push(button);
-			}
-		}
-	}
 	const sendButton= createBtn(form, 'send', SVG_SEND);
 	sendButton.name= 'send';
 	sendButton.setAttribute('disabled', '');
+
+	const optionsElements= [];
+	const chatScopeOptions= [];
+	addOptionsControl(form, sendButton, chatbot.getOptions(), selected, optionsElements, chatScopeOptions);
 	function _updateSendButtonEnablement() {
 		if (_input.value.trim() === '' || !_isReadyToSend) {
 			sendButton.setAttribute('disabled', '');
@@ -422,7 +339,7 @@ export function chatbotUi(chatbot, parent, config) {
 				}
 			}
 		});
-		for (optionElement of chatScopeOptions) {
+		for (const optionElement of chatScopeOptions) {
 			if (_isSplash) {
 				optionElement.removeAttribute('disabled');
 			} else {
@@ -482,4 +399,95 @@ export function chatbotUi(chatbot, parent, config) {
 	};
 	chatbot.observe(ui);
 	return ui;
+}
+
+async function addOptionsControl(form, beforeChild, optionsPromis, selected, optionsElements, chatScopeOptions) {
+	const options = await optionsPromis;
+	var optionsArea;
+	for (const opt of options) {
+		if (optionsArea === undefined) {
+			optionsArea= createElement(undefined, 'div', 'options');
+			form.insertBefore(optionsArea, beforeChild);
+			setClassName(form, 'form o');
+		}
+		const select= createElement(optionsArea, 'div', 'select');
+		let label;
+		for (const item of opt.values) {
+			if (!label || item.default) {
+				label= item.label ? item.label : item.value;
+				if (item.default) break;
+			}
+		}
+		const button= createElement(select, 'button', 'btn ' + opt.id, label);
+		if (typeof opt.description === 'string') {
+			button.alt= opt.description;
+			button.title= opt.description;
+		}
+		const dropdown= createElement(select, 'div', 'items');
+		const itemElements= [];
+		for (const item of opt.values) {
+			itemElements.push(createElement(dropdown, 'button', undefined, item.label ? item.label : item.value));
+		}
+		dropdown.style.display= 'none';
+		function openDropdown(state) {
+			dropdown.style.display= state ? 'block' : 'none';
+			setClassName(select, 'select' + (state ? ' o' : ''));
+		}
+		function toggleDropdown(e) {
+			openDropdown(dropdown.style.display == 'none');
+			preventDefault(e);
+			return false;
+		}
+		addEvent(button, 'click', toggleDropdown);
+		function chooseFn(value, silent) {
+			selected[opt.id]= value.value;
+			button.textContent= value.label ? value.label : value.value;
+			if (!silent) {
+				openDropdown();
+			}
+		}
+		toMenu(button, itemElements, opt.values, chooseFn);
+		optionsElements.push({
+			reset: (function(id, values) {
+				return function(options) {
+					var newValue= options ? options[id] : undefined;
+					for (var j= 0; j < values.length; j++) {
+					var newValue= options ? options[id] : undefined;
+						if (newValue == values[j].value || (newValue === undefined && values[j].default)) {
+							chooseFn(values[j], true);
+							return;
+						}
+					}
+				};
+			})(opt.id, opt.values)
+		});
+		if (opt.scope == 'chat') {
+			chatScopeOptions.push(button);
+		}
+	}
+}
+
+/**
+ * @param {string} prop
+ */
+function getConfigString(prop, defaultValue) {
+	return config && typeof config[prop] === 'string' ? config[prop] : (defaultValue ? defaultValue : '');
+}
+
+/**
+ * @param {Element} parent
+ * @param {string} id
+ * @param {string} defaultSvg
+ * @param {string} [defaultHover]
+ * @returns {Element}
+ */
+function createBtn(parent, id, defaultSvg, defaultHover) {
+	const btn= createElement(parent, 'button', 'btn ' + id);
+	btn.innerHTML= getConfigString(id + 'Btn', defaultSvg);
+	if (defaultHover) {
+		const hover= getConfigString(id + 'Hover', defaultHover);
+		btn.alt= getConfigString(id + 'Alt', hover);
+		btn.title= getConfigString(id + 'Title', hover);
+	}
+	return btn;
 }

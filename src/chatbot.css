@@ -135,6 +135,11 @@
 	border: 1px solid #cfcfcf;
 	box-shadow: rgba(0, 0, 0, .04) 0px 4px 4px 0px, rgba(0, 0, 0, .62) 0px 0px 1px 0px, 0 2rem 2rem 3rem #fff;
 }
+.-c-form.-c-o {
+	display: grid;
+	grid-template-rows: 1fr auto;
+	grid-template-columns: 1fr auto;
+}
 .-c-input {
 	flex: 1;
 	display: block;
@@ -146,6 +151,13 @@
 	outline: none;
 	background: transparent;
 	resize: none;
+}
+.-c-o .-c-input {
+	grid-column-start: 1;
+	grid-column-end: 3;
+	padding: 0 .15rem;
+	margin: 6px 0;
+	min-height: 1.75rem;
 }
 .-c-input::placeholder, .-c-footer, .-c-footer a {
 	color: #8f8f8f;
@@ -212,6 +224,48 @@
 }
 .-c-msg-p.-c-role-assistant .-c-tbar .-c-btn, .-c-msg-p:hover .-c-tbar .-c-btn, .-c-msg-p:focus-within .-c-tbar .-c-btn, .-c-role-assistant:last-child .-c-tbar .-c-btn {
 	opacity: 1;
+}
+
+/* Options */
+.-c-options .-c-btn {
+	width: auto;
+	background: #ececec;
+}
+.-c-options .-c-btn, .-c-items button {
+	color: #0d0d0d;
+	font-weight: 400;
+	padding: 0.5rem 0.75rem;
+}
+.-c-options .-c-btn:hover, .-c-items button.-c-active {
+	background: #f0f0f0;
+}
+.-c-select {
+	width: fit-content;
+	position: relative;
+}
+.-c-items {
+	position: absolute;
+	bottom: 100%;
+	padding: .25rem;
+	margin: 0.25rem -.25rem;
+	background: #fff;
+	border: 1px solid #cfcfcf;
+	border-radius: 1rem;
+}
+.-c-splash .-c-items {
+	bottom: unset;
+}
+.-c-items button {
+	background: none;
+	display: block;
+	width: 100%;
+	text-align: start;
+	text-wrap: nowrap;
+	border: none;
+	border-radius: .625rem;
+}
+.-c-items button.-c-active {
+	background: #f5f5f5;
 }
 
 /* Waiting: pulsating dot */

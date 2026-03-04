@@ -9,7 +9,7 @@
 	"scripts": {
 		"test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
 		"build:clean": "rimraf dist",
-		"build:init": "copyfiles -u 1 src/sample.html dist && copyfiles -u 3 node_modules/katex/dist/katex.min.css node_modules/katex/dist/fonts/* dist",
+		"build:init": "copyfiles -u 1 src/sample* dist && copyfiles -u 3 node_modules/katex/dist/katex.min.css node_modules/katex/dist/fonts/* dist",
 		"build:rollup": "rollup src/bundle.js --file dist/chatbot.js --format es --plugin @rollup/plugin-node-resolve --intro \"/* chatbot.js */(function(window, document){\" --footer \"}(window, document));\"",
 		"build:babel": "babel dist/chatbot.js --out-file dist/chatbot.compat.js --plugins @babel/plugin-transform-runtime",
 		"build:compatminify": "terser dist/chatbot.compat.js --output dist/chatbot.compat.min.js --banner \"/* chatbot.js */\"",
