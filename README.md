@@ -21,6 +21,7 @@ And then open `http://localhost:8082/sample.html` or, if `--port 8082` is omitte
 The JavaScript file contains the following dependencies:
 - [markdown-it](https://www.npmjs.com/package/markdown-it) - Converts Markdown to HTML
 - [@mdit/plugin-katex](https://www.npmjs.com/package/@mdit/plugin-katex) - A markdown-it extension for converting mathematical expressions contained in Markdown in LaTeX format
+- [@lemonadejs/dropdown](https://lemonadejs.com/docs/plugins/dropdown) - Dropdown widget
 
 
 ## How to Build
