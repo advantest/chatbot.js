@@ -374,6 +374,31 @@ export function chatbotUi(chatbot, parent, config) {
 		_resizeAndScroll(true);
 	}
 
+	/**
+	 * @param {string} prop
+	 */
+	function getConfigString(prop, defaultValue) {
+		return config !== undefined && typeof config[prop] === 'string' ? config[prop] : (defaultValue ? defaultValue : '');
+	}
+
+	/**
+	 * @param {Element} parent
+	 * @param {string} id
+	 * @param {string} defaultSvg
+	 * @param {string} [defaultHover]
+	 * @returns {Element}
+	 */
+	function createBtn(parent, id, defaultSvg, defaultHover) {
+		const btn= createElement(parent, 'button', 'btn ' + id);
+		btn.innerHTML= getConfigString(id + 'Btn', defaultSvg);
+		if (defaultHover) {
+			const hover= getConfigString(id + 'Hover', defaultHover);
+			btn.alt= getConfigString(id + 'Alt', hover);
+			btn.title= getConfigString(id + 'Title', hover);
+		}
+		return btn;
+	}
+
 	const ui= {
 		update,
 		enter: function(str, smart) {
@@ -435,29 +460,4 @@ async function addOptionsControl(form, beforeChild, optionsPromis, selected, opt
 			chatScopeOptions.push(dropdown);
 		}
 	}
-}
-
-/**
- * @param {string} prop
- */
-function getConfigString(prop, defaultValue) {
-	return config && typeof config[prop] === 'string' ? config[prop] : (defaultValue ? defaultValue : '');
-}
-
-/**
- * @param {Element} parent
- * @param {string} id
- * @param {string} defaultSvg
- * @param {string} [defaultHover]
- * @returns {Element}
- */
-function createBtn(parent, id, defaultSvg, defaultHover) {
-	const btn= createElement(parent, 'button', 'btn ' + id);
-	btn.innerHTML= getConfigString(id + 'Btn', defaultSvg);
-	if (defaultHover) {
-		const hover= getConfigString(id + 'Hover', defaultHover);
-		btn.alt= getConfigString(id + 'Alt', hover);
-		btn.title= getConfigString(id + 'Title', hover);
-	}
-	return btn;
 }

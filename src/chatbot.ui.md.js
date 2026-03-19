@@ -1,6 +1,6 @@
 // @ts-check
 import markdownit from 'markdown-it';
-import { katex } from "@mdit/plugin-katex";
+import { katex } from '@mdit/plugin-katex';
 import { createElement } from './chatbot.ui.utility.js';
 
 const mdit= markdownit({html: true}).use(katex).use(function (md) {
