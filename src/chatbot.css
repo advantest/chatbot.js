@@ -58,6 +58,45 @@
 .-c-splash .-c-btn.-c-new {
 	display: none;
 }
+.-c-root {
+	width: 100%;
+	height: 100%;
+	display: flex;
+}
+.-c-sources {
+	width: 420px;
+	background: #f9f9f9;
+	border-left: 1px solid #cfcfcf;
+	transition-property: width;
+	transition-timing-function: cubic-bezier(.4,0,.2,1);
+	transition-duration: .3s;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #333 transparent;
+	padding: .25rem;
+}
+.-c-sources .-c-h {
+	font-size: 1.25rem;
+	font-weight: 400;
+	color: #cfcfcf;
+	padding: .5rem 0 0 .5rem;
+}
+.-c-sources ol {
+	padding: 0;
+	margin: .5rem 0;
+	list-style-type: none;
+}
+.-c-sources a, .-c-sources a:hover {
+	display: inline-block;
+	width: 100%;
+	padding: .5rem;
+	text-decoration: none;
+	color: #0d0d0d;
+}
+.-c-sources a:hover {
+	background: #efefef;
+	border-radius: 10px;
+}
 .-c-main {
 	height: 100%;
 	overflow: auto;
@@ -178,9 +217,11 @@
 .-c-tbar {
 	display: none;
 	padding: .25rem 0;
+	flex-direction: row;
+	gap: .5rem;
 }
 .-c-done > .-c-tbar, .-c-role-user .-c-tbar {
-	display: block;
+	display: flex;
 }
 .-c-btn, .lm-dropdown-input {
 	align-self: flex-end;
@@ -214,6 +255,9 @@
 .-c-btn:disabled, .-c-options .-c-btn:disabled {
 	color: #f4f4f4;
 	background: #d7d7d7;
+}
+.-c-btn.-c-btn-sources {
+	width: max-content;
 }
 .-c-msg-p:has(.-c-wait) .-c-tbar {
 	display: none;

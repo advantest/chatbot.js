@@ -37,6 +37,11 @@ export function chatbotUi(chatbot, parent, config) {
 	let _isReadyToSend= true;
 	let _isTypeEverywhere= false;
 	let _autoScrollType= 'top';
+	let _refsMapByMsgObj= new Map();
+	let _toolbarByMsgObj= new Map();
+	let _sourcesFnByMsgObj= new Map();
+	let _sourcesSidebar;
+	let _sourcesSidebarMsgObj;
 	const _widget= createElement(parent, 'div', 'widget splash');
 	if (!config || config.closeBtn || config.newBtn !== false) {
 		const mbar= createElement(_widget, 'div', 'mbar');
@@ -54,7 +59,8 @@ export function chatbotUi(chatbot, parent, config) {
 			}
 		}
 	}
-	const main= createElement(_widget, 'div', 'main');
+	const _mainP= createElement(_widget, 'div', 'root');
+	const main= createElement(_mainP, 'div', 'main');
 	const scroll= createElement(main, 'div', 'scroll');
 	const sticky= createElement(main, 'div', 'sticky');
 	const title= createElement(scroll, 'h1', 'title', getConfigString('title'));
@@ -252,6 +258,11 @@ export function chatbotUi(chatbot, parent, config) {
 					_input.placeholder= getConfigString('placeholder', 'Ask anything');
 				}
 				_isSplash= true;
+				_refsMapByMsgObj= new Map();
+				_toolbarByMsgObj= new Map();
+				_sourcesFnByMsgObj= new Map();
+				_sourcesSidebarMsgObj= undefined;
+				showSourcesSidebar(false);
 				setClassName(_widget, 'widget splash');
 			} else if (change.action == 'add') {
 				let skip= false;
@@ -285,6 +296,7 @@ export function chatbotUi(chatbot, parent, config) {
 						msgElement.innerHTML= toHtml(messageMd);
 					}
 					const toolbar= createElement(msgContainer, 'div', 'tbar');
+					_toolbarByMsgObj.set(change.msgObj, toolbar);
 					const copyButton= createBtn(toolbar, 'copy', SVG_COPY, 'Copy');
 					const copyButtonDefaultInner= copyButton.innerHTML;
 					addEvent(copyButton, 'click', () => {
@@ -324,7 +336,9 @@ export function chatbotUi(chatbot, parent, config) {
 			} else if (change.action == 'updateProperty' && change.property == 'contentWithRefs' && change.msgObj) {
 				const streamElement= _map.get(change.msgObj);
 				if (!streamElement || change.msgObj.content === undefined || change.msgObj.contentWithRefs === undefined || change.msgObj.refs === undefined) return;
-				const groundedAnswer= resolve(change.msgObj.content, change.msgObj.contentWithRefs, change.msgObj.refs, {}, chatbot.config.refsBaseUrl);
+				const refsMap= {};
+				const groundedAnswer= resolve(change.msgObj.content, change.msgObj.contentWithRefs, change.msgObj.refs, refsMap, chatbot.config.refsBaseUrl);
+				_refsMapByMsgObj.set(change.msgObj, refsMap);
 				if (streamElement._a != groundedAnswer) {
 					streamElement._a= groundedAnswer;
 					streamElement.innerHTML= toHtml(groundedAnswer);
@@ -338,10 +352,73 @@ export function chatbotUi(chatbot, parent, config) {
 					optionsElements.forEach(element => element.reset(change.msgObj.options));
 				}
 			}
+			if (change.action == 'add' || (change.action == 'updateProperty' && change.property == 'refs')) {
+				sourcesButton(change);
+			}
 		});
 		for (const optionElement of chatScopeOptions) {
 			optionElement.disabled= !_isSplash;
 		}
+	}
+
+	function sourcesButton(change) {
+		if (change.msgObj.role === 'user' || !change.msgObj.refs || !getConfigBoolean('sourcesSidebar', true)) return;
+		const toolbar= _toolbarByMsgObj.get(change.msgObj);
+		if (!toolbar) return;
+		if (!_sourcesFnByMsgObj.get(change.msgObj)) {
+			const sourcesCount= withoutDuplicates(change.msgObj.refs).length;
+			const sourcesLabel= sourcesCount + ' source' + (sourcesCount > 1 ? 's' : '');
+			const sourcesButton= createBtn(toolbar, 'btn-sources', sourcesLabel, 'Sources');
+			function sourcesFn() {
+				_sourcesSidebarMsgObj= change.msgObj;
+				_sourcesSidebar.innerHTML= '';
+				createElement(_sourcesSidebar, 'div', 'h', 'Sources');
+				const listElement= createElement(_sourcesSidebar, 'ol');
+				for (const ref of withoutDuplicates(_sourcesSidebarMsgObj.refs)) {
+					const a= createElement(createElement(listElement, 'li'), 'a', 0, ref.t);
+					a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
+					a.target= '_blank';
+					if (ref.b) {
+						a.title= ref.b;
+					}
+				}
+			}
+			_sourcesFnByMsgObj.set(change.msgObj, sourcesFn)
+			addEvent(sourcesButton, 'click', () => {
+				if (_sourcesSidebarMsgObj === change.msgObj) {
+					_sourcesSidebarMsgObj= undefined;
+					showSourcesSidebar(false);
+				} else {
+					showSourcesSidebar(true);
+					sourcesFn();
+				}
+			});
+		}
+	}
+
+	function showSourcesSidebar(enablement) {
+		if (!_sourcesSidebar) {
+			if (!enablement) return;
+			_sourcesSidebar= createElement(_mainP, 'aside', 'sources');
+			_sourcesSidebar.style.width= 0;
+			_sourcesSidebar.style.padding= 0;
+		}
+		if (enablement) {
+			setTimeout(() => { _sourcesSidebar.style.width= ''; _sourcesSidebar.style.padding= ''}, 0);
+		} else {
+			setTimeout(() => { _sourcesSidebar.style.width= 0; _sourcesSidebar.style.padding= 0}, 0);
+		}
+	}
+
+	function withoutDuplicates(refs) {
+		const result= [];
+		const hrefsDone= new Set();
+		for (const ref of refs) {
+			if (hrefsDone.has(ref.h)) continue;
+			hrefsDone.add(ref.h);
+			result.push(ref);
+		}
+		return result;
 	}
 
 	/** @type {(str: string, smart?: boolean) => void} */
@@ -379,6 +456,13 @@ export function chatbotUi(chatbot, parent, config) {
 	 */
 	function getConfigString(prop, defaultValue) {
 		return config !== undefined && typeof config[prop] === 'string' ? config[prop] : (defaultValue ? defaultValue : '');
+	}
+
+	/**
+	 * @param {string} prop
+	 */
+	function getConfigBoolean(prop, defaultValue) {
+		return config !== undefined && typeof config[prop] === 'boolean' ? config[prop] : (defaultValue ? defaultValue : false);
 	}
 
 	/**
