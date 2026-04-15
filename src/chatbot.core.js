@@ -81,8 +81,8 @@ export function chatbot(urlOrConfig) {
 			&& typeof chatbot.messages[chatbot.messages.length - 1].role === 'string') {
 			const lastMsgObj= chatbot.messages[chatbot.messages.length - 1];
 
-				// If the last message is from the assistant, use that instead
-				msgObj= _apply(chatbot, undefined, lastMsgObj, true, undefined, undefined, undefined, undefined, undefined, true);
+			// If the last message is from the assistant, use that instead
+			msgObj= _apply(chatbot, undefined, lastMsgObj, true, undefined, undefined, undefined, undefined, undefined, true);
 
 		} else {
 			msgObj= _apply(chatbot, undefined, undefined, true);
@@ -208,11 +208,11 @@ export function chatbot(urlOrConfig) {
 	 */
 	function _toRequestStr(chatbot, request, url, asStream) {
 		const requestFnResult= typeof request === 'function' ? request(chatbot, url, asStream) : undefined;
-        return typeof request === 'string' ? request :
-            typeof request === 'function' ? (requestFnResult !== null && typeof requestFnResult === 'object' ?
-                JSON.stringify(requestFnResult) :
-                '' + requestFnResult) :
-                JSON.stringify(_createRequest(chatbot, request === undefined ? {} : request, asStream));
+		return typeof request === 'string' ? request :
+			typeof request === 'function' ? (requestFnResult !== null && typeof requestFnResult === 'object' ?
+				JSON.stringify(requestFnResult) :
+				'' + requestFnResult) :
+				JSON.stringify(_createRequest(chatbot, request === undefined ? {} : request, asStream));
 	}
 
 	/**
@@ -260,13 +260,13 @@ export function chatbot(urlOrConfig) {
 	 * @param {unknown} data
 	 * @returns {Array.<Record<string, unknown>>}
 	 */
-    function toOptions(data) {
-        if (!Array.isArray(data)) return [];
-        const isValidArray = data.every(item =>
-            item !== null && typeof item === 'object' && !Array.isArray(item)
-        );
-        return isValidArray ? data : [];
-    }
+	function toOptions(data) {
+		if (!Array.isArray(data)) return [];
+		const isValidArray = data.every(item =>
+			item !== null && typeof item === 'object' && !Array.isArray(item)
+		);
+		return isValidArray ? data : [];
+	}
 
 	return {
 
@@ -280,11 +280,11 @@ export function chatbot(urlOrConfig) {
 				return new Promise((resolve) => { resolve(toOptions(this.config.options)); });
 			}
 			if (typeof this.config.options === 'string') {
-                const data = await sendHttpRequest(this.config.options);
+				const data = await sendHttpRequest(this.config.options);
 				return toOptions(data);
 			}
 			if (typeof this.config.options === 'function') {
-                const result = this.config.options(this);
+				const result = this.config.options(this);
 				if (result instanceof Promise) {
 					const resultData = await result;
 					return toOptions(resultData);

@@ -426,29 +426,29 @@
 	display: none;
 }
 :root {
-    --lm-font-color: inherit;
-    --lm-main-color: #2196f3;
-    --lm-main-color-alpha: #2196f388;
-    --lm-main-color-highlight: #1f64e1;
-    --lm-secondary-color: #737373;
+	--lm-font-color: inherit;
+	--lm-main-color: #2196f3;
+	--lm-main-color-alpha: #2196f388;
+	--lm-main-color-highlight: #1f64e1;
+	--lm-secondary-color: #737373;
 
-    --lm-border-color: #ccc;
-    --lm-border-color-light: #e9e9e9;
-    --lm-border-color-highlight: #aaa;
-    --lm-border-outline: #000;
-    --lm-background-color: #fff;
-    --lm-background-color-header: #f8f8f8;
-    --lm-background-color-highlight: #ececec;
-    --lm-background-color-active: #dcdcdc;
-    --lm-background-color-input: initial;
-    --lm-icon-color: #777;
+	--lm-border-color: #ccc;
+	--lm-border-color-light: #e9e9e9;
+	--lm-border-color-highlight: #aaa;
+	--lm-border-outline: #000;
+	--lm-background-color: #fff;
+	--lm-background-color-header: #f8f8f8;
+	--lm-background-color-highlight: #ececec;
+	--lm-background-color-active: #dcdcdc;
+	--lm-background-color-input: initial;
+	--lm-icon-color: #777;
 
-    --lm-font-grayout: #777;
-    --lm-input-padding: 6px;
-    --lm-border-radius: 2px;
-    --lm-safe-area-top: 0;
-    --lm-safe-area-bottom: 0;
-    --lm-text-color: #000;
+	--lm-font-grayout: #777;
+	--lm-input-padding: 6px;
+	--lm-border-radius: 2px;
+	--lm-safe-area-top: 0;
+	--lm-safe-area-bottom: 0;
+	--lm-text-color: #000;
 }
 .lm-modal {
 	position: fixed;

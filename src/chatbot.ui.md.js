@@ -4,32 +4,32 @@ import { katex } from '@mdit/plugin-katex';
 import { createElement } from './chatbot.ui.utility.js';
 
 const mdit= markdownit({html: true}).use(katex).use(function (md) {
-    const tagsRegExp= new RegExp('^\\s*<[/]?t(able|head|body|foot|r|h|d)\\b(\\s+(colspan|rowspan)\\s*=\\s*[\'"]\\d+[\'"])*\\s*>\\s*$', 'i');
-    const refsRegExp= new RegExp('^\\s*<[/]?(br|sub|sup|(a\\b(\\s+((class="[^"]*")|(href="[^"]+")|(target="[^"]*")|(title="[^"]*")|(ref="[^"]*")))*))\\s*>\\s*$', 'i');
-    md.core.ruler.push('sec', function(state) {
-        const tokens= state.tokens;
-        for (let i= 0; i < tokens.length; i++) {
+	const tagsRegExp= new RegExp('^\\s*<[/]?t(able|head|body|foot|r|h|d)\\b(\\s+(colspan|rowspan)\\s*=\\s*[\'"]\\d+[\'"])*\\s*>\\s*$', 'i');
+	const refsRegExp= new RegExp('^\\s*<[/]?(br|sub|sup|(a\\b(\\s+((class="[^"]*")|(href="[^"]+")|(target="[^"]*")|(title="[^"]*")|(ref="[^"]*")))*))\\s*>\\s*$', 'i');
+	md.core.ruler.push('sec', function(state) {
+		const tokens= state.tokens;
+		for (let i= 0; i < tokens.length; i++) {
 
-            // allow table elements (needed to be surrounded by '\n\n...\n\n': see below)
-            if (!tokens[i].children && tokens[i].type != 'html_block') continue;
-            if (tokens[i].type == 'html_block' && tagsRegExp.test(tokens[i].content)) {
-                tokens[i].content= tokens[i].content.trim();
-                continue;
-            }
+			// allow table elements (needed to be surrounded by '\n\n...\n\n': see below)
+			if (!tokens[i].children && tokens[i].type != 'html_block') continue;
+			if (tokens[i].type == 'html_block' && tagsRegExp.test(tokens[i].content)) {
+				tokens[i].content= tokens[i].content.trim();
+				continue;
+			}
 
 			/** @type {any} */
-            const childTokens= tokens[i].children ? tokens[i].children : [tokens[i]];
-            for (let j= 0; j < childTokens.length; j++) {
-                if (childTokens[j].type == 'html_inline' || childTokens[j].type == 'html_block') {
-                    if (refsRegExp.test(childTokens[j].content)) continue;
-                    childTokens[j].content=
-                          '<' + (tokens[i].children ? 'span' : 'div') + ' style="color:#900">'
-                        + childTokens[j].content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
-                        + '</' + (tokens[i].children ? 'span' : 'div') + '>';
-                }
-            }
-        }
-    });
+			const childTokens= tokens[i].children ? tokens[i].children : [tokens[i]];
+			for (let j= 0; j < childTokens.length; j++) {
+				if (childTokens[j].type == 'html_inline' || childTokens[j].type == 'html_block') {
+					if (refsRegExp.test(childTokens[j].content)) continue;
+					childTokens[j].content=
+						  '<' + (tokens[i].children ? 'span' : 'div') + ' style="color:#900">'
+						+ childTokens[j].content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+						+ '</' + (tokens[i].children ? 'span' : 'div') + '>';
+				}
+			}
+		}
+	});
 });
 
 /**
@@ -68,19 +68,19 @@ const FIRST_REF_INDEX= 0; // 1 - if [[1]] refers to `refs[0]` and not `refs[1]`;
  * @param {string} [target]
  */
 export function resolve(answer, answerWithRefs, refs, refsMap, baseUrl, target) {
-    let result= '';
-    let rest= answer;
-    let restStart= 0;
+	let result= '';
+	let rest= answer;
+	let restStart= 0;
 	let start= 0;
 
 	let nextRef= Object.keys(refsMap).length + 1;
-    const refRegex= /\s*\[\[(\d+)\]\]/g;
-    let match;
-    while ((match= refRegex.exec(answerWithRefs)) !== null) {
+	const refRegex= /\s*\[\[(\d+)\]\]/g;
+	let match;
+	while ((match= refRegex.exec(answerWithRefs)) !== null) {
 
 		// Same answer with and without references, ignoring trailing whitespace?
 		const prefix= answerWithRefs.substring(start, match.index);
-        const prefixTrimmed= prefix.trimStart();
+		const prefixTrimmed= prefix.trimStart();
 		start= match.index + match[0].length;
 		const restTrimmed= rest.trimStart();
 		if (prefixTrimmed.length > 0 && restTrimmed.indexOf(prefixTrimmed) != 0) break;
@@ -101,24 +101,24 @@ export function resolve(answer, answerWithRefs, refs, refsMap, baseUrl, target) 
 		// Append reference, if possible
 		const chunkNr= parseInt(match[1]) - FIRST_REF_INDEX;
 		if (chunkNr < 0 || chunkNr >= refs.length) continue;
-	    const refChunk= refs[chunkNr];
-	    let ref= refsMap[refChunk.h];
-	    if (!ref) {
-	        ref= nextRef;
-	        refsMap[refChunk.h]= ref;
-	        nextRef++;
-	    }
-	    const dummy= createElement(undefined, 'div');
+		const refChunk= refs[chunkNr];
+		let ref= refsMap[refChunk.h];
+		if (!ref) {
+			ref= nextRef;
+			refsMap[refChunk.h]= ref;
+			nextRef++;
+		}
+		const dummy= createElement(undefined, 'div');
 
 		/** @type {any} */
-	    const element= createElement(dummy, 'a', 'ref');
+		const element= createElement(dummy, 'a', 'ref');
 		element.setAttribute('ref', '' + ref);
-	    element.href= (baseUrl === undefined ? '' : baseUrl) + refChunk.h;
-	    element.target= target === undefined ? '_blank' : target;
-	    element.title= refChunk.t;
-	    result+= dummy.innerHTML;
+		element.href= (baseUrl === undefined ? '' : baseUrl) + refChunk.h;
+		element.target= target === undefined ? '_blank' : target;
+		element.title= refChunk.t;
+		result+= dummy.innerHTML;
 
-    }
+	}
 
 	// Make sure that there is a line break between a code fence and a reference,
 	// otherwise the code fence will not be recognized as such.

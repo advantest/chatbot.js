@@ -67,65 +67,65 @@ export function stopPropagation(e) {
 }
 
 export function toMenu(master, items, data, chooseFn, applyFn, cancelFn, armFn) {
-    //var isNotInputField = master.nodeName != 'INPUT';
-    var cursorIndex = 0;
-    var isInit = 0;
-    master.onkeydown = function(e) {
-        e = e || window.event;
-        var key = e.keyCode || e.charCode;
+	//var isNotInputField = master.nodeName != 'INPUT';
+	var cursorIndex = 0;
+	var isInit = 0;
+	master.onkeydown = function(e) {
+		e = e || window.event;
+		var key = e.keyCode || e.charCode;
 
-        if (   cursorIndex > 0
-            && getClassName(items[cursorIndex-1]) == items[cursorIndex-1].z) {
-            cursorIndex = 0;
-        }
+		if (   cursorIndex > 0
+			&& getClassName(items[cursorIndex-1]) == items[cursorIndex-1].z) {
+			cursorIndex = 0;
+		}
 
-        // RIGHT (key: 39) or TAB without SHIFT (key: 9) to apply
-        if (applyFn && (key == 39 || (key == 9 && !e.shiftKey))) {
-            if (applyFn(data, key)) preventDefault(e);
-        }
+		// RIGHT (key: 39) or TAB without SHIFT (key: 9) to apply
+		if (applyFn && (key == 39 || (key == 9 && !e.shiftKey))) {
+			if (applyFn(data, key)) preventDefault(e);
+		}
 
-        // ESC to cancel
-        if (cancelFn && key == 27) {
-            cancelFn();
-            preventDefault(e);
-            return;
-        }
-
-        // ENTER to choose
-        if (key == 13 && cursorIndex > 0) {
-            preventDefault(e);
-            stopPropagation(e);
-            setClassName(items[cursorIndex-1], items[cursorIndex-1].z);
-            chooseFn(data[cursorIndex-1]);
-            cursorIndex = 0;
+		// ESC to cancel
+		if (cancelFn && key == 27) {
+			cancelFn();
+			preventDefault(e);
 			return;
-        }
+		}
 
-        // select by UP and DOWN
-        if (key != 40 && key != 38) return;
-        preventDefault(e);
-        var isDown = key == 40;
-        if (cursorIndex > 0) {
-            setClassName(items[cursorIndex-1], items[cursorIndex-1].z);
-        }
-        cursorIndex = cursorIndex < 1
-                      ? (isDown ? 1 : items.length)
-                      : (cursorIndex + (isDown ? 1 : -1)) % (items.length + 1);
-        if (cursorIndex > 0) {
-           var item = items[cursorIndex-1];
-           setClassName(item, item.z == '' ? 'active' : item.z + ' active');
-           if (armFn) armFn(item, data[cursorIndex-1], 0);
-        }
-    }
-    for (var i = 0; i < items.length; i++) {
-        items[i].z = getClassName(items[i]);
-        items[i].onmousedown = function() {setTimeout(function() {if (master && !master.hasFocus) master.focus()}, 42)};
-        items[i].onmouseup = items[i].ontouchend = function(a, b) {return function(e) {preventDefault(e); if (!a.canceled) {chooseFn(b); setClassName(a, a.z); cursorIndex = 0}}}(items[i], data[i]);
-        items[i].onmouseover = items[i].ontouchstart = function(a, b, c) {return function() {if (!isInit) return; if (cursorIndex > 0) setClassName(items[cursorIndex-1], items[cursorIndex-1].z); setClassName(a, a.z == '' ? 'active' : a.z + ' active'); cursorIndex = b; a.canceled = ''; if (armFn && b > 0) armFn(a, c, 1)}}(items[i], i+1, data[i]);
-        items[i].onmouseout = function(a) {return function() {setClassName(a, a.z)}}(items[i]);
+		// ENTER to choose
+		if (key == 13 && cursorIndex > 0) {
+			preventDefault(e);
+			stopPropagation(e);
+			setClassName(items[cursorIndex-1], items[cursorIndex-1].z);
+			chooseFn(data[cursorIndex-1]);
+			cursorIndex = 0;
+			return;
+		}
+
+		// select by UP and DOWN
+		if (key != 40 && key != 38) return;
+		preventDefault(e);
+		var isDown = key == 40;
+		if (cursorIndex > 0) {
+			setClassName(items[cursorIndex-1], items[cursorIndex-1].z);
+		}
+		cursorIndex = cursorIndex < 1
+			? (isDown ? 1 : items.length)
+			: (cursorIndex + (isDown ? 1 : -1)) % (items.length + 1);
+		if (cursorIndex > 0) {
+			var item = items[cursorIndex-1];
+			setClassName(item, item.z == '' ? 'active' : item.z + ' active');
+			if (armFn) armFn(item, data[cursorIndex-1], 0);
+		}
+	}
+	for (var i = 0; i < items.length; i++) {
+		items[i].z = getClassName(items[i]);
+		items[i].onmousedown = function() {setTimeout(function() {if (master && !master.hasFocus) master.focus()}, 42)};
+		items[i].onmouseup = items[i].ontouchend = function(a, b) {return function(e) {preventDefault(e); if (!a.canceled) {chooseFn(b); setClassName(a, a.z); cursorIndex = 0}}}(items[i], data[i]);
+		items[i].onmouseover = items[i].ontouchstart = function(a, b, c) {return function() {if (!isInit) return; if (cursorIndex > 0) setClassName(items[cursorIndex-1], items[cursorIndex-1].z); setClassName(a, a.z == '' ? 'active' : a.z + ' active'); cursorIndex = b; a.canceled = ''; if (armFn && b > 0) armFn(a, c, 1)}}(items[i], i+1, data[i]);
+		items[i].onmouseout = function(a) {return function() {setClassName(a, a.z)}}(items[i]);
 		addEvent(items[i], 'click', e => {preventDefault(e); return false;});
-    }
-    setTimeout(function() {isInit = 1; }, 142);
+	}
+	setTimeout(function() {isInit = 1; }, 142);
 }
 
 /**
@@ -139,5 +139,5 @@ function setAttribute(element, attribute, value) {
 }
 
 function getClassName(element) {
-    return element.className;
+	return element.className;
 }
