@@ -39,9 +39,10 @@ export function chatbotUi(chatbot, parent, config) {
 	let _autoScrollType= 'top';
 	let _refsMapByMsgObj= new Map();
 	let _toolbarByMsgObj= new Map();
-	let _sourcesFnByMsgObj= new Map();
+	let _sourcesBtnByMsgObj= new Map();
 	let _sourcesSidebar;
 	let _sourcesSidebarMsgObj;
+	let _sourcesSidebarState;
 	const _widget= createElement(parent, 'div', 'widget splash');
 	if (!config || config.closeBtn || config.newBtn !== false) {
 		const mbar= createElement(_widget, 'div', 'mbar');
@@ -260,7 +261,7 @@ export function chatbotUi(chatbot, parent, config) {
 				_isSplash= true;
 				_refsMapByMsgObj= new Map();
 				_toolbarByMsgObj= new Map();
-				_sourcesFnByMsgObj= new Map();
+				_sourcesBtnByMsgObj= new Map();
 				_sourcesSidebarMsgObj= undefined;
 				showSourcesSidebar(false);
 				setClassName(_widget, 'widget splash');
@@ -291,7 +292,7 @@ export function chatbotUi(chatbot, parent, config) {
 					} else if (role != 'user') {
 						let messageMd= message;
 						if (change.msgObj.contentWithRefs && change.msgObj.refs) {
-							messageMd= resolve(message, change.msgObj.contentWithRefs, change.msgObj.refs, {}, chatbot.config.refsBaseUrl);
+							messageMd= resolve(message, change.msgObj.contentWithRefs, change.msgObj.refs, new Map(), chatbot.config.refsBaseUrl);
 						}
 						msgElement.innerHTML= toHtml(messageMd);
 					}
@@ -336,7 +337,7 @@ export function chatbotUi(chatbot, parent, config) {
 			} else if (change.action == 'updateProperty' && change.property == 'contentWithRefs' && change.msgObj) {
 				const streamElement= _map.get(change.msgObj);
 				if (!streamElement || change.msgObj.content === undefined || change.msgObj.contentWithRefs === undefined || change.msgObj.refs === undefined) return;
-				const refsMap= {};
+				const refsMap= new Map();
 				const groundedAnswer= resolve(change.msgObj.content, change.msgObj.contentWithRefs, change.msgObj.refs, refsMap, chatbot.config.refsBaseUrl);
 				_refsMapByMsgObj.set(change.msgObj, refsMap);
 				if (streamElement._a != groundedAnswer) {
@@ -346,6 +347,7 @@ export function chatbotUi(chatbot, parent, config) {
 				if (change.end) {
 					streamElement.parentNode.className+= ' ' + CLASS_PREFIX + 'ref-done';
 				}
+				updateSourcesSidebar(change);
 				_resizeAndScroll(false, true, false, streamElement, false);
 			} else if (change.action == 'sent') {
 				if (change.msgObj) {
@@ -362,38 +364,27 @@ export function chatbotUi(chatbot, parent, config) {
 	}
 
 	function sourcesButton(change) {
-		if (change.msgObj.role === 'user' || !change.msgObj.refs || !getConfigBoolean('sourcesSidebar', true)) return;
+		if (change.msgObj.role === 'user' || !change.msgObj.refs || _sourcesBtnByMsgObj.get(change.msgObj)
+			|| !getConfigBoolean('sourcesSidebar', true)) return;
 		const toolbar= _toolbarByMsgObj.get(change.msgObj);
 		if (!toolbar) return;
-		if (!_sourcesFnByMsgObj.get(change.msgObj)) {
-			const sourcesCount= withoutDuplicates(change.msgObj.refs).length;
-			const sourcesLabel= sourcesCount + ' source' + (sourcesCount > 1 ? 's' : '');
-			const sourcesButton= createBtn(toolbar, 'btn-sources', sourcesLabel, 'Sources');
-			function sourcesFn() {
-				_sourcesSidebarMsgObj= change.msgObj;
-				_sourcesSidebar.innerHTML= '';
-				createElement(_sourcesSidebar, 'div', 'h', 'Sources');
-				const listElement= createElement(_sourcesSidebar, 'ol');
-				for (const ref of withoutDuplicates(_sourcesSidebarMsgObj.refs)) {
-					const a= createElement(createElement(listElement, 'li'), 'a', 0, ref.t);
-					a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
-					a.target= '_blank';
-					if (ref.b) {
-						a.title= ref.b;
-					}
-				}
-			}
-			_sourcesFnByMsgObj.set(change.msgObj, sourcesFn)
-			addEvent(sourcesButton, 'click', () => {
-				if (_sourcesSidebarMsgObj === change.msgObj) {
-					_sourcesSidebarMsgObj= undefined;
-					showSourcesSidebar(false);
-				} else {
-					showSourcesSidebar(true);
-					sourcesFn();
-				}
-			});
+		const sourcesCount= withoutDuplicates(change.msgObj.refs).length;
+		const sourcesLabel= sourcesCount + ' source' + (sourcesCount > 1 ? 's' : '');
+		const sourcesButton= createBtn(toolbar, 'btn-sources', sourcesLabel, 'Sources');
+		function sourcesFn() {
+			_sourcesSidebarMsgObj= change.msgObj;
+			updateSourcesSidebar(change);
 		}
+		_sourcesBtnByMsgObj.set(change.msgObj, sourcesButton);
+		addEvent(sourcesButton, 'click', () => {
+			if (_sourcesSidebarMsgObj === change.msgObj) {
+				_sourcesSidebarMsgObj= undefined;
+				showSourcesSidebar(false);
+			} else {
+				showSourcesSidebar(true);
+				sourcesFn();
+			}
+		});
 	}
 
 	function showSourcesSidebar(enablement) {
@@ -407,6 +398,69 @@ export function chatbotUi(chatbot, parent, config) {
 			setTimeout(() => { _sourcesSidebar.style.width= ''; _sourcesSidebar.style.padding= ''}, 0);
 		} else {
 			setTimeout(() => { _sourcesSidebar.style.width= 0; _sourcesSidebar.style.padding= 0}, 0);
+		}
+	}
+
+	function updateSourcesSidebar(change) {
+		if (_sourcesSidebarMsgObj !== change.msgObj) return;
+		const refsMap= _refsMapByMsgObj.get(_sourcesSidebarMsgObj);
+		const state= JSON.stringify(_sourcesSidebarMsgObj.refs) + mapToString(refsMap);
+		if (state == _sourcesSidebarState) return;
+		_sourcesSidebarState= state;
+		_sourcesSidebar.innerHTML= '';
+		createElement(_sourcesSidebar, 'div', 'h', 'Sources');
+		const listElement= createElement(_sourcesSidebar, 'ol');
+		const refsWithoutDuplicates= withoutDuplicates(_sourcesSidebarMsgObj.refs);
+		const done= new Set();
+		if (refsMap) {
+			const refsValues= [];
+			for (value of refsMap.values()) {
+				refsValues.push(value);
+			}
+			refsValues.sort();
+			for (const refN of refsValues) {
+				let href;
+				for (const [key, value] of refsMap) {
+					if (value == refN) {
+						href= key;
+					}
+				}
+				if (!href) continue;
+				for (const ref of refsWithoutDuplicates) {
+					if (ref.h != href) continue;
+					done.add(ref.h);
+					const a= createElement(createElement(listElement, 'li'), 'a', 0);
+					a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
+					a.target= '_blank';
+					createElement(a, 'span', 'ref-', refN);
+					a.appendChild(document.createTextNode(ref.t));
+					if (ref.b) {
+						a.title= ref.b;
+					}
+					break;
+				}
+			}
+		}
+		const uncitedRefs= [];
+		for (const ref of refsWithoutDuplicates) {
+			if (done.has(ref.h)) continue;
+			uncitedRefs.push(ref);
+		}
+		for (const ref of uncitedRefs) {
+			const a= createElement(createElement(listElement, 'li'), 'a', 0, ref.t);
+			a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
+			a.target= '_blank';
+			if (ref.b) {
+				a.title= ref.b;
+			}
+		}
+	}
+
+	function mapToString(map) {
+		try {
+			return JSON.stringify(Array.from(map));
+		} catch {
+			return '';
 		}
 	}
 

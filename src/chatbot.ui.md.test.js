@@ -26,7 +26,7 @@ describe('chatbot.ui.md.test.js', () => {
 		    refs.push({h: i + '.html', t: 'Topic ' + i});
 		}
 		toTest.forEach(tuple => {
-			const resolved= resolve(tuple[0], tuple[1], refs, {});
+			const resolved= resolve(tuple[0], tuple[1], refs, new Map());
 			const normalized= resolved.replace(/<a[^>]*?href="(\d+)[^<]*<\/a>/g, '<$1>');
 			expect(normalized).toBe(tuple[2]);
 		});
@@ -47,7 +47,7 @@ describe('chatbot.ui.md.test.js', () => {
 		}
 		toTest.forEach(withRefs => {
 			const withoutRefs= withRefs.replace(/\[\[(\d+)\]\]/g, '');
-			const resolved= resolve(withoutRefs, withRefs, refs, {});
+			const resolved= resolve(withoutRefs, withRefs, refs, new Map());
 			const reverted= resolved.replace(/\[\[(\d+)\]\]/g, '[[missed: $1]]').replace(/<a[^>]*?href="(\d+)[^<]*<\/a>/g, '[[$1]]');
 			expect(reverted).toBe(withRefs);
 		});

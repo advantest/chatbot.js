@@ -63,7 +63,7 @@ const FIRST_REF_INDEX= 0; // 1 - if [[1]] refers to `refs[0]` and not `refs[1]`;
  * @param {string} answer
  * @param {string} answerWithRefs
  * @param {Array.<Record<string, unknown> & { h: string }>} refs
- * @param {Object} refsMap
+ * @param {Map} refsMap
  * @param {string} [baseUrl]
  * @param {string} [target]
  */
@@ -102,10 +102,10 @@ export function resolve(answer, answerWithRefs, refs, refsMap, baseUrl, target) 
 		const chunkNr= parseInt(match[1]) - FIRST_REF_INDEX;
 		if (chunkNr < 0 || chunkNr >= refs.length) continue;
 		const refChunk= refs[chunkNr];
-		let ref= refsMap[refChunk.h];
+		let ref= refsMap.get(refChunk.h);
 		if (!ref) {
 			ref= nextRef;
-			refsMap[refChunk.h]= ref;
+			refsMap.set(refChunk.h, ref);
 			nextRef++;
 		}
 		const dummy= createElement(undefined, 'div');

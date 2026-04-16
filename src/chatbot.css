@@ -97,6 +97,24 @@
 	background: #efefef;
 	border-radius: 10px;
 }
+.-c-sources a .-c-ref- {
+	display: inline-block;
+	color: #999;
+	background: #f4f4f4;
+	border-radius: 9em;
+	font-size: .625em;
+	font-weight: bold;
+	margin: 0 4px 0 0;
+	min-width: 1.75em;
+	padding: 1px 2px 2px 2px;
+	position: relative;
+	text-align: center;
+	vertical-align: top;
+}
+.-c-sources a:hover .-c-ref- {
+	color: #0d0d0d;
+	background: #d7d7d7;
+}
 .-c-main {
 	height: 100%;
 	overflow: auto;
