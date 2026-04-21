@@ -1,6 +1,9 @@
 .-c-widget {
+	width: 100%;
 	height: 100%;
 	overflow: hidden;
+	display: flex;
+	flex-direction: row;
 	margin: 0;
 	padding: 0;
 	background: #fff;
@@ -17,7 +20,7 @@
 	margin: 0;
 	padding: 0;
 }
-.-c-widget, .-c-main, .-c-scroll, .-c-sticky, .-c-chat-area, .-c-form-area {
+.-c-main, .-c-scroll, .-c-sticky, .-c-chat-area, .-c-form-area {
 	width: 100%;
 	display: flex;
 	flex-direction: column;
@@ -25,13 +28,17 @@
 }
 .-c-mbar {
 	width: 100%;
-	padding: .5rem;
 	display: grid;
 	grid-template-columns: 1fr minmax(0, 1fr) 1fr;
+	position: absolute;
+	height: 0;
+	padding: 0;
+	z-index: 9;
 }
 .-c-start, .-c-end {
 	min-width: max-content;
 	display: inline-flex;
+	padding: .5rem;
 }
 .-c-start {
 	justify-self: start;
@@ -44,26 +51,38 @@
 	text-align: center;
 	min-width: 0;
 }
-@media (min-width: 56rem) {
-	.-c-mbar {
-		position: absolute;
-		box-shadow: none;
-		height: 0;
+@media (max-width: 54rem) {
+	.-c-root .-c-mbar {
+		position: relative;
+		height: unset;
+		padding: .5rem;
+	}
+	.-c-root .-c-mbar .-c-start, .-c-mbar .-c-end {
 		padding: 0;
 	}
-	.-c-mbar .-c-start, .-c-mbar .-c-end {
+}
+@media (max-width: 74rem) {
+	.-c-widget.-c-side-r .-c-root .-c-mbar {
+		position: relative;
+		height: unset;
 		padding: .5rem;
+	}
+	.-c-widget.-c-side-r .-c-root .-c-mbar .-c-start, .-c-widget.-c-side-r .-c-root .-c-mbar .-c-end {
+		padding: 0;
 	}
 }
 .-c-splash .-c-btn.-c-new {
 	display: none;
 }
 .-c-root {
+	position: relative;
 	width: 100%;
 	height: 100%;
 	display: flex;
+	flex-direction: column;
 }
 .-c-sources {
+	position: relative;
 	width: 420px;
 	background: #f9f9f9;
 	border-left: 1px solid #cfcfcf;
@@ -74,6 +93,16 @@
 	scrollbar-width: thin;
 	scrollbar-color: #333 transparent;
 	padding: .25rem;
+}
+.-c-sources .-c-mbar {
+	position: absolute;
+	top: .5rem;
+	right: .5rem;
+	height: 0;
+	padding: 0;
+	display: inline-flex;
+	flex-direction: column;
+	min-height: 2rem;
 }
 .-c-sources .-c-h {
 	font-size: 1.25rem;
@@ -116,6 +145,7 @@
 	background: #d7d7d7;
 }
 .-c-main {
+	position: relative;
 	height: 100%;
 	overflow: auto;
 }
@@ -259,7 +289,6 @@
 .-c-tbar .-c-btn, .-c-mbar .-c-btn {
 	width: 2rem;
 	height: 2rem;
-	align-self: flex-start;
 	color: #5d5d5d;
 	background: transparent;
 	border-radius: .5rem;

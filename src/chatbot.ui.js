@@ -41,11 +41,14 @@ export function chatbotUi(chatbot, parent, config) {
 	let _toolbarByMsgObj= new Map();
 	let _sourcesBtnByMsgObj= new Map();
 	let _sourcesSidebar;
+	let _sourcesSidebarcloseBtn;
+	let _sourcesSidebarContent;
 	let _sourcesSidebarMsgObj;
 	let _sourcesSidebarState;
 	const _widget= createElement(parent, 'div', 'widget splash');
+	const _mainP= createElement(_widget, 'div', 'root');
 	if (!config || config.closeBtn || config.newBtn !== false) {
-		const mbar= createElement(_widget, 'div', 'mbar');
+		const mbar= createElement(_mainP, 'div', 'mbar');
 		const mbarStart= createElement(mbar, 'div', 'start');
 		createElement(mbar, 'div', 'center');
 		const mbarEnd= createElement(mbar, 'div', 'end');
@@ -60,7 +63,6 @@ export function chatbotUi(chatbot, parent, config) {
 			}
 		}
 	}
-	const _mainP= createElement(_widget, 'div', 'root');
 	const main= createElement(_mainP, 'div', 'main');
 	const scroll= createElement(main, 'div', 'scroll');
 	const sticky= createElement(main, 'div', 'sticky');
@@ -262,7 +264,6 @@ export function chatbotUi(chatbot, parent, config) {
 				_refsMapByMsgObj= new Map();
 				_toolbarByMsgObj= new Map();
 				_sourcesBtnByMsgObj= new Map();
-				_sourcesSidebarMsgObj= undefined;
 				showSourcesSidebar(false);
 				setClassName(_widget, 'widget splash');
 			} else if (change.action == 'add') {
@@ -378,7 +379,6 @@ export function chatbotUi(chatbot, parent, config) {
 		_sourcesBtnByMsgObj.set(change.msgObj, sourcesButton);
 		addEvent(sourcesButton, 'click', () => {
 			if (_sourcesSidebarMsgObj === change.msgObj) {
-				_sourcesSidebarMsgObj= undefined;
 				showSourcesSidebar(false);
 			} else {
 				showSourcesSidebar(true);
@@ -390,13 +390,25 @@ export function chatbotUi(chatbot, parent, config) {
 	function showSourcesSidebar(enablement) {
 		if (!_sourcesSidebar) {
 			if (!enablement) return;
-			_sourcesSidebar= createElement(_mainP, 'aside', 'sources');
+			_sourcesSidebar= createElement(_widget, 'aside', 'sources');
 			_sourcesSidebar.style.width= 0;
 			_sourcesSidebar.style.padding= 0;
+			const mbar= createElement(_sourcesSidebar, 'div', 'mbar');
+			_sourcesSidebarcloseBtn= createBtn(mbar, 'close', SVG_CLOSE, 'Close');
+			addEvent(_sourcesSidebarcloseBtn, 'click', () => {
+				showSourcesSidebar(false);
+			});
+			_sourcesSidebarContent= createElement(_sourcesSidebar, 'div');
 		}
+		setClassName(_widget, 'widget' + (enablement ? ' side-r' : ''));
 		if (enablement) {
+			_sourcesSidebarcloseBtn.style.display= '';
+			_sourcesSidebar.style.overflowY= '';
 			setTimeout(() => { _sourcesSidebar.style.width= ''; _sourcesSidebar.style.padding= ''}, 0);
 		} else {
+			_sourcesSidebarMsgObj= undefined;
+			_sourcesSidebarcloseBtn.style.display= 'none';
+			_sourcesSidebar.style.overflowY= 'hidden';
 			setTimeout(() => { _sourcesSidebar.style.width= 0; _sourcesSidebar.style.padding= 0}, 0);
 		}
 	}
@@ -407,9 +419,9 @@ export function chatbotUi(chatbot, parent, config) {
 		const state= JSON.stringify(_sourcesSidebarMsgObj.refs) + mapToString(refsMap);
 		if (state == _sourcesSidebarState) return;
 		_sourcesSidebarState= state;
-		_sourcesSidebar.innerHTML= '';
-		createElement(_sourcesSidebar, 'div', 'h', 'Sources');
-		const listElement= createElement(_sourcesSidebar, 'ol');
+		_sourcesSidebarContent.innerHTML= '';
+		createElement(_sourcesSidebarContent, 'div', 'h', 'Sources');
+		const listElement= createElement(_sourcesSidebarContent, 'ol');
 		const refsWithoutDuplicates= withoutDuplicates(_sourcesSidebarMsgObj.refs);
 		const done= new Set();
 		if (refsMap) {
