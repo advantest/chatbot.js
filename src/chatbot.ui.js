@@ -1,7 +1,7 @@
 import * as chatbot from './chatbot.core.js';
 import { createElement, addEvent, preventDefault, setClassName, toMenu, CLASS_PREFIX } from './chatbot.ui.utility.js';
 import { resolve, toHtml } from './chatbot.ui.md.js';
-import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE } from './chatbot.ui.icons.js';
+import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_FOLD } from './chatbot.ui.icons.js';
 import { Dropdown } from './lemonadejs.dropdown.js';
 
 const MAX_HEIGHT_OF_WIDGET_PERCENTAGE= 0.61;
@@ -444,11 +444,11 @@ export function chatbotUi(chatbot, parent, config) {
 					const a= createElement(createElement(listElement, 'li'), 'a', 0);
 					a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
 					a.target= '_blank';
-					createElement(a, 'span', 'ref-', refN);
-					a.appendChild(document.createTextNode(ref.t));
 					if (ref.b) {
 						a.title= ref.b;
 					}
+					createElement(a, 'span', 'ref-', refN);
+					createElement(a, 'span', undefined, ref.t);
 					break;
 				}
 			}
@@ -458,12 +458,26 @@ export function chatbotUi(chatbot, parent, config) {
 			if (done.has(ref.h)) continue;
 			uncitedRefs.push(ref);
 		}
-		for (const ref of uncitedRefs) {
-			const a= createElement(createElement(listElement, 'li'), 'a', 0, ref.t);
-			a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
-			a.target= '_blank';
-			if (ref.b) {
-				a.title= ref.b;
+		if (uncitedRefs.length) {
+			let moreList= listElement;
+			if (done.size) {
+				const li= createElement(listElement, 'li', 'more-li closed');
+				const moreOpener= createElement(li, 'span', 'more-h');
+				const handle= createElement(moreOpener, 'span', 'more-');
+				handle.innerHTML= SVG_FOLD;
+				createElement(moreOpener, 'span', 'more--', 'More');
+				moreList= createElement(li, 'ol', 'more');
+				addEvent(moreOpener, 'click', () => {
+					setClassName(li, 'more-li' + (li.className.indexOf('closed') < 0 ? ' closed' : ''));
+				});
+			}
+			for (const ref of uncitedRefs) {
+				const a= createElement(createElement(moreList, 'li'), 'a', 0, ref.t);
+				a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
+				a.target= '_blank';
+				if (ref.b) {
+					a.title= ref.b;
+				}
 			}
 		}
 	}
