@@ -428,7 +428,7 @@ export function chatbotUi(chatbot, parent, config) {
 			for (value of refsMap.values()) {
 				refsValues.push(value);
 			}
-			refsValues.sort();
+			refsValues.sort((a, b) => a - b);
 			for (const refN of refsValues) {
 				let href;
 				for (const [key, value] of refsMap) {
