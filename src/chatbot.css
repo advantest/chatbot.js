@@ -13,7 +13,7 @@
 	scrollbar-color: #cfcfcf transparent; /* in ChatGPT brighter (#ececec) and only for main area */
 	scrollbar-width: thin; /* scrollbar without up/down buttons */
 }
-.-c-widget, .-c-chat-area, .-c-chat {
+.-c-widget, .-c-chat {
 	overflow: hidden;
 }
 .-c-widget, .-c-input {
@@ -23,7 +23,7 @@
 	margin: 0;
 	padding: 0;
 }
-.-c-main, .-c-scroll, .-c-sticky, .-c-chat-area, .-c-form-area {
+.-c-main, .-c-scroll, .-c-sticky, .-c-form-area {
 	width: 100%;
 	display: flex;
 	flex-direction: column;
@@ -192,8 +192,8 @@
 	height: 100%;
 	overflow: auto;
 }
-.-c-title, .-c-chat-area, .-c-form-area, .-c-footer {
-	padding: 0 1.25rem;
+.-c-title, .-c-chat, .-c-form-area, .-c-footer {
+	padding: 0 1rem;
 }
 .-c-scroll {
 	flex: 1;
@@ -210,7 +210,7 @@
 	position: relative;
 	bottom: auto;
 }
-.-c-title, .-c-widget.-c-splash .-c-chat-area {
+.-c-title {
 	display: none;
 }
 .-c-widget.-c-splash .-c-title, .-c-widget.-c-splash .-c-footer {
@@ -229,8 +229,8 @@
 	max-width: 48rem;
 	align-items: center;
 }
-.-c-chat-area {
-	flex: 1;
+.-c-chat {
+	max-width: 50rem; /* = .-c-form max-width + 2 * .-c-chat padding = 48rem  + 2 * 1rem */
 }
 .-c-msg-p {
 	display: flex;

@@ -71,7 +71,7 @@ export function chatbotUi(chatbot, parent, config) {
 	if (titleHtml) {
 		title.innerHTML= titleHtml;
 	}
-	const _msgArea= createElement(createElement(scroll, 'div', 'chat-area'), 'div', 'chat');
+	const _msgArea= createElement(scroll, 'div', 'chat');
 	const selected= {};
 	const form= createElement(createElement(sticky, 'div', 'form-area'), 'form', 'form');
 	const _input= createElement(form, 'textarea', 'input');
