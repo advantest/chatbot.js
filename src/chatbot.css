@@ -413,6 +413,7 @@
 
 /* Markdown */
 .-c-md {
+	width: 100%;
 	padding: 0;
 	margin: 0;
 	list-style-type: disc;
@@ -447,7 +448,7 @@
 }
 .-c-md pre {
 	overflow-y: auto;
-	max-width: 48rem; /* same as for .-c-form (see above) */
+	max-width: 100%;
 	background: #f9f9f9;
 	border-radius: 1rem;
 	border: none;
