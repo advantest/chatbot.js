@@ -30,48 +30,29 @@
 	align-items: center;
 }
 .-c-mbar {
-	width: 100%;
-	display: grid;
-	grid-template-columns: 1fr minmax(0, 1fr) 1fr;
-	position: absolute;
+	display: flex;
+	position: relative;
 	height: 0;
-	padding: 0;
-	z-index: 9;
+	justify-content: center;
+	z-index: 1;
+	transition-duration: .25s;
+	transition-property: height;
+	transition-timing-function: cubic-bezier(.4,0,.2,1);
 }
 .-c-start, .-c-end {
-	min-width: max-content;
-	display: inline-flex;
+	flex: 0 0 auto;
+	width: max-content;
 	padding: .5rem;
 }
-.-c-start {
-	justify-self: start;
-}
-.-c-end {
-	justify-self: end;
-}
 .-c-center {
-	justify-self: stretch;
+	flex: 1;
 	text-align: center;
-	min-width: 0;
+	overflow: hidden;
 }
-@media (max-width: 54rem) {
-	.-c-root .-c-mbar {
-		position: relative;
-		height: unset;
-		padding: .5rem;
-	}
-	.-c-root .-c-mbar .-c-start, .-c-mbar .-c-end {
-		padding: 0;
-	}
-}
-@media (max-width: 74rem) {
-	.-c-widget.-c-side-r .-c-root .-c-mbar {
-		position: relative;
-		height: unset;
-		padding: .5rem;
-	}
-	.-c-widget.-c-side-r .-c-root .-c-mbar .-c-start, .-c-widget.-c-side-r .-c-root .-c-mbar .-c-end {
-		padding: 0;
+@container root (max-width: calc(48rem + 64px)) {
+	.-c-mbar {
+		height: fit-content;
+		height: calc(1em + 32px); /* Needs to be an absolute value, otherwise transition would not work! */
 	}
 }
 .-c-splash .-c-btn.-c-new {
@@ -83,6 +64,8 @@
 	height: 100%;
 	display: flex;
 	flex-direction: column;
+	container-name: root;
+	container-type: inline-size;
 }
 .-c-sources {
 	position: relative;
@@ -236,7 +219,7 @@
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
-	padding: 1.25rem 0;
+	padding: .5rem 0;
 }
 .-c-msg {
 	width: auto;

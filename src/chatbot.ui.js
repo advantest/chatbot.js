@@ -400,7 +400,6 @@ export function chatbotUi(chatbot, parent, config) {
 			});
 			_sourcesSidebarContent= createElement(_sourcesSidebar, 'div');
 		}
-		setClassName(_widget, 'widget' + (enablement ? ' side-r' : ''));
 		if (enablement) {
 			_sourcesSidebarcloseBtn.style.display= '';
 			_sourcesSidebar.style.overflowY= '';
