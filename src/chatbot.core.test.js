@@ -49,9 +49,11 @@ describe('chatbot.core.test.js', () => {
 	 * @returns {chatbot.Connector}
 	 */
 	function toUpperCaseConnector() {
+		// @ts-ignore
 		return {
 			send(callback, msg) {
 				return new Promise((resolve) => {
+					// @ts-ignore
 					callback(msg.toUpperCase(), true);
 					resolve();
 				});

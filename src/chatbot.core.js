@@ -1,5 +1,7 @@
 // @ts-check
 import { sendHttpRequest } from './chatbot.http.js';
+import { createInmemoryHistory } from './chatbot.history.in_memory.js';
+import { createIndexeddbHistory } from './chatbot.history.indexeddb.js';
 
 const DEFAULT_URL= 'v1/chat/completions';
 const STREAM= true;
@@ -7,10 +9,12 @@ const STREAM= true;
 /**
  * @typedef {Object} Chatbot
  * @property {Array.<MessageObject>} messages
+ * @property {History | undefined} history
+ * @property {ChatDescriptor | undefined} desc
  * @property {ChatbotConfig} config
  * @property {(message: string, options?: Record<string, unknown>) => Promise<unknown>} send
  * @property {function(Observer): void} observe
- * @property {(messages?: Array.<MessageObject>, send?: boolean) => void} reset
+ * @property {(messages?: Array.<MessageObject>, send?: boolean, desc?: ChatDescriptor) => void} reset
  * @property {() => Promise<Array.<Record<string, unknown>>>} getOptions
  * @property {(url: string,
  *             callback?: (data: Record<string, unknown> | undefined, done: boolean) => void,
@@ -32,6 +36,7 @@ const STREAM= true;
  *             rawSendFn: ((message: string, options?: Record<string, unknown>) => Promise<unknown>),
  *             options?: Record<string, unknown>) => Promise<unknown>} [sendHook]
  * @property {Array.<Record<string, unknown>> | string | function} [options]
+ * @property {'inmemory' | 'indexeddb' | History} [history]
  */
 
 /**
@@ -132,6 +137,12 @@ export function chatbot(urlOrConfig) {
 	/** @type {Array.<Observer>} */
 	const _observers= [];
 
+	/** @type {Map.<MessageObject, ChatDescriptor>} */
+	const _chatDescByMsgObj= new Map();
+
+	/** @type {Map.<ChatDescriptor, Array.<MessageObject>>} */
+	const _messagesByDesc= new Map();
+
 	/**
 	 * @param {Chatbot} chatbot
 	 * @param {string} [delta]
@@ -162,6 +173,9 @@ export function chatbot(urlOrConfig) {
 			if (!reset) {
 				if (!init) {
 					chatbot.messages.push(target);
+					if (chatbot.desc) {
+						_chatDescByMsgObj.set(target, chatbot.desc);
+					}
 				}
 				changes.push({ action: 'add', msgObj: target, start: true, end: !!done });
 			}
@@ -192,8 +206,33 @@ export function chatbot(urlOrConfig) {
 			changes.push({ action: receive ? 'received' : 'sent', msgObj: target, end: true });
 		}
 
+		if (chatbot.history) {
+			if (chatbot.messages.length && !chatbot.desc) {
+				chatbot.desc= {id: -1, name: '...'};
+				chatbot.history.add(chatbot.messages, chatNameFromFirstMessage(chatbot.messages))
+					.then((desc) => {
+						chatbot.desc= desc;
+						chatbot.messages.forEach((msgObj) => _chatDescByMsgObj.set(msgObj, desc));
+					}).catch(error => asyncObserversUpdate({ action: 'historyAddError', msgObj: target, value: error }));
+				changes.push({ action: 'history', msgObj: chatbot.messages[0] });
+			}
+			const desc= _chatDescByMsgObj.get(target);
+			if (desc) {
+				const messages= _messagesByDesc.get(desc);
+				chatbot.history.update(desc, messages ? messages : chatbot.messages)
+					.catch(error => asyncObserversUpdate({ action: 'historyUpdateError', msgObj: target, value: error }));
+			}
+		}
+
 		_observers.forEach(observer => observer.update(changes));
 		return target;
+	}
+
+	/**
+	 * @param {Change} change
+	 */
+	function asyncObserversUpdate(change) {
+		_observers.forEach(observer => observer.update([change]));
 	}
 
 	/**
@@ -238,8 +277,14 @@ export function chatbot(urlOrConfig) {
 	 * @param {Chatbot} chatbot
 	 * @param {Array.<MessageObject>} [messages]
 	 * @param {boolean} [send]
+	 * @param {ChatDescriptor} [desc]
 	 */
-	function _reset(chatbot, messages, send) {
+	function _reset(chatbot, messages, send, desc) {
+		if ((!messages || !messages.length) && !chatbot.messages.length) return;
+		if (chatbot.history && chatbot.desc) {
+			_messagesByDesc.set(chatbot.desc, chatbot.messages);
+		}
+		chatbot.desc= desc;
 		chatbot.messages= messages ? messages : [];
 		if (chatbot.config.connector && typeof chatbot.config.connector.reset === 'function') {
 			chatbot.config.connector.reset();
@@ -268,9 +313,28 @@ export function chatbot(urlOrConfig) {
 		return isValidArray ? data : [];
 	}
 
+	/**
+	 * @returns {History | undefined}
+	 */
+	function getHistoryImpl() {
+		if (typeof urlOrConfig !== 'object' || !urlOrConfig.history) return undefined;
+		if (urlOrConfig.history === 'indexeddb') {
+			const dbPrefixConfig= urlOrConfig['historyIndexeddbPrefix'];
+			const dbPrefix= typeof dbPrefixConfig === 'string' ? dbPrefixConfig : '';
+			return createIndexeddbHistory(dbPrefix);
+		}
+		if (urlOrConfig.history === 'inmemory') return createInmemoryHistory();
+		if (typeof urlOrConfig.history === 'object') return urlOrConfig.history;
+		return undefined;
+	}
+
 	return {
 
 		messages: [],
+
+		desc: undefined,
+
+		history: getHistoryImpl(),
 
 		config: typeof urlOrConfig === 'string' ? { url: urlOrConfig } :
 			typeof urlOrConfig === 'object' ? urlOrConfig : {},
@@ -310,8 +374,8 @@ export function chatbot(urlOrConfig) {
 			return this;
 		},
 
-		reset(messages, send) {
-			_reset(this, messages, send);
+		reset(messages, send, desc) {
+			_reset(this, messages, send, desc);
 			return this;
 		},
 
@@ -319,3 +383,23 @@ export function chatbot(urlOrConfig) {
 
 	};
 }
+
+/** @type {(messages: Array.<MessageObject>) => string} */
+function chatNameFromFirstMessage(messages) {
+	if (!messages || !messages.length || !messages[0].content) return '';
+	return messages[0].content.substring(0, 42) + (messages[0].content.length > 42 ? '...' : '');
+}
+
+/**
+ * @typedef {Object} History
+ * @property {() => Promise<Array.<ChatDescriptor>>} list
+ * @property {(chat: ChatDescriptor) => Promise<Array.<MessageObject> | undefined>} get
+ * @property {(messages: Array.<MessageObject>, name: string) => Promise<ChatDescriptor>} add
+ * @property {(chat: ChatDescriptor, messages: Array.<MessageObject>) => Promise<boolean>} update
+ * @property {(chat: ChatDescriptor) => Promise<boolean>} remove
+ * @property {() => Promise<boolean>} removeAll
+ */
+
+/**
+ * @typedef {Record<string, unknown> & {id: string | number, name: string, lastModified?: number}} ChatDescriptor
+ */

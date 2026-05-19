@@ -1,12 +1,13 @@
 import * as chatbot from './chatbot.core.js';
-import { createElement, addEvent, preventDefault, setClassName, toMenu, CLASS_PREFIX } from './chatbot.ui.utility.js';
+import { createElement, addEvent, preventDefault, setClassName, CLASS_PREFIX } from './chatbot.ui.utility.js';
 import { resolve, toHtml } from './chatbot.ui.md.js';
-import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_FOLD, SVG_DOT } from './chatbot.ui.icons.js';
+import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD, SVG_DOT } from './chatbot.ui.icons.js';
 import { Dropdown } from './lemonadejs.dropdown.js';
 
 const MAX_HEIGHT_OF_WIDGET_PERCENTAGE= 0.61;
 const UI_THROTTLE_DELAY= 100; // in milliseconds
 const DONE_DELAY= 2000; // in milliseconds; time of showing that an action like copy to clipboar has been done
+const HISTORY_FOOTER_DEFAULT= 'Your chats are saved locally in your browser\'s IndexedDB.';
 
 
 /**
@@ -70,15 +71,80 @@ export function chatbotUi(chatbot, parent, config) {
 	}
 	const _widget= createElement(parent, 'div', 'widget splash');
 	const newBtnToAdd= !config || config.newBtn !== false;
+	function addNewBtn(newBtnParent) {
+		const newBtn= createBtn(newBtnParent, 'new', SVG_NEW, 'New chat');
+		addEvent(newBtn, 'click', () => chatbot.reset());
+	}
+	let _historySidebar;
+	let _historyInitExpand= false;
+	function expandHistorySidebar(expand) {
+		if (!_historySidebar) return;
+		const newState = expand || (expand === undefined && _historySidebar.getAttribute('aria-expanded') !== 'true');
+		_historyInitExpand||= newState;
+		_historySidebar.setAttribute('aria-expanded', newState);
+	}
+	function updateHistorySidebar() {
+		if (!_historySidebar) return;
+		_historySidebar.innerHTML= '';
+		const buttonsDiv= createElement(_historySidebar, 'div', 'hbtns');
+		const sidebarBtn= createBtn(buttonsDiv, 'sidebar', SVG_SIDEBAR, 'Open sidebar');
+		addEvent(sidebarBtn, 'click', () => {
+			expandHistorySidebar();
+		});
+		if (newBtnToAdd) {
+			addNewBtn(buttonsDiv);
+		}
+		const historyList= createElement(_historySidebar, 'div', 'hlist');
+		const note= getConfigString('historyFooter', HISTORY_FOOTER_DEFAULT);
+		if (note) {
+			createElement(_historySidebar, 'div', 'hfooter', note);
+		}
+		const deleteAllbtn= createElement(
+			createElement(_historySidebar, 'div', 'hdelall'), 'button', 'btn', 'Delete All');
+		deleteAllbtn.title= 'Delete all chats';
+		addEvent(deleteAllbtn, 'click', () => {
+			chatbot.history.removeAll().then(() => updateHistorySidebar());
+		});
+		deleteAllbtn.disabled= true;
+		chatbot.history.list().then((descs) => {
+			for (let i= descs.length; i > 0; i--) {
+				const historyItem= createElement(historyList, 'div', 'hitm');
+				const desc= descs[i - 1];
+				const btn= createElement(historyItem, 'button', 'btn hname', desc.name);
+				if (desc.name) {
+					btn.title= desc.name;
+				}
+				addEvent(btn, 'click', () => {
+					chatbot.history.get(desc).then((messages) => {
+						chatbot.reset(messages, false, desc);
+					}).catch(_ => {}); // TODO: Show error message (currently, nothing happens)
+				});
+				const delBtn= createElement(historyItem, 'button', 'btn hdel', 'x');
+				if (desc.name) {
+					delBtn.title= 'Delete: ' + desc.name;
+				}
+				addEvent(delBtn, 'click', () => {
+					chatbot.history.remove(desc).then(() => updateHistorySidebar());
+				});
+			}
+			if (descs.length) {
+				deleteAllbtn.disabled= false;
+			}
+		});
+	}
+	if (chatbot.history) {
+		_historySidebar= createElement(_widget, 'aside', 'history');
+		expandHistorySidebar(false);
+		updateHistorySidebar();
+	}
 	const _mainP= createElement(_widget, 'div', 'root');
-	if (!config || config.closeBtn || newBtnToAdd) {
+	if (!config || config.closeBtn || (newBtnToAdd && !_historySidebar)) {
 		const mbar= createElement(_mainP, 'div', 'mbar');
 		const mbarStart= createElement(mbar, 'div', 'start');
 		createElement(mbar, 'div', 'center');
 		const mbarEnd= createElement(mbar, 'div', 'end');
-		if (newBtnToAdd) {
-			const newBtn= createBtn(mbarStart, 'new', SVG_NEW, 'New chat');
-			addEvent(newBtn, 'click', () => chatbot.reset());
+		if (newBtnToAdd && !_historySidebar) {
+			addNewBtn(mbarStart);
 		}
 		if (config && config.closeBtn) {
 			const closeBtn= createBtn(mbarEnd, 'close', SVG_CLOSE, 'Close chatbot');
@@ -317,7 +383,9 @@ export function chatbotUi(chatbot, parent, config) {
 					} else if (role != 'user') {
 						let messageMd= message;
 						if (change.msgObj.contentWithRefs && change.msgObj.refs) {
-							messageMd= resolve(message, change.msgObj.contentWithRefs, change.msgObj.refs, new Map(), chatbot.config.refsBaseUrl);
+							const refsMap= new Map();
+							messageMd= resolve(message, change.msgObj.contentWithRefs, change.msgObj.refs, refsMap, chatbot.config.refsBaseUrl);
+							_refsMapByMsgObj.set(change.msgObj, refsMap);
 						}
 						msgElement.innerHTML= toHtml(messageMd);
 					}
@@ -396,6 +464,15 @@ export function chatbotUi(chatbot, parent, config) {
 			if (change.action == 'add' || (change.action == 'updateProperty' && change.property == 'refs')) {
 				sourcesButton(change);
 			}
+			if (change.action == 'history') {
+				updateHistorySidebar();
+				if (!_historyInitExpand) {
+					expandHistorySidebar(true);
+				}
+			}
+			// TODO: Display an error message to the user if adding or updating the history fails.
+			// if (change.action == 'historyAddError' || change.action == 'historyUpdateError' ) { ... }
+
 		});
 		for (const optionElement of chatScopeOptions) {
 			optionElement.disabled= !_isSplash;

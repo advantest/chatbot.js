@@ -26,7 +26,7 @@ var uiConfig= {
 };
 var containerElement= document.getElementsByTagName('body')[0];
 if (!window.location.href.startsWith('file:')) {
-	chatbotUi(chatbot(), containerElement, uiConfig).typeEverywhere(true);
+	chatbotUi(chatbot({history: 'indexeddb'}), containerElement, uiConfig).typeEverywhere(true);
 } else {
 
 	// Dummy connector when there is no API:
@@ -41,7 +41,8 @@ if (!window.location.href.startsWith('file:')) {
 					}, 800);
 				});
 			}
-		}
+		},
+		history: 'indexeddb'
 	};
 	chatbotUi(chatbot(config), containerElement, uiConfig).typeEverywhere(true);
 

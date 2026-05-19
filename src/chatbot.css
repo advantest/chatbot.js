@@ -67,10 +67,9 @@
 	container-name: root;
 	container-type: inline-size;
 }
-.-c-sources {
+.-c-sources, .-c-history {
 	position: relative;
 	width: 420px;
-	background: #f9f9f9;
 	border-left: 1px solid #cfcfcf;
 	transition-property: width;
 	transition-timing-function: cubic-bezier(.4,0,.2,1);
@@ -79,6 +78,66 @@
 	scrollbar-width: thin;
 	scrollbar-color: #333 transparent;
 	padding: .25rem;
+}
+.-c-history {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	border-right: 1px solid #cfcfcf;
+	padding: .5rem 0;
+	width: 310px;
+}
+.-c-history[aria-expanded="false"] {
+	width: 58px;
+	border-right: none;
+}
+.-c-history[aria-expanded="false"] .-c-hlist, .-c-history[aria-expanded="false"] .-c-hfooter, .-c-history[aria-expanded="false"] .-c-hdelall {
+	display: none;
+}
+.-c-history .-c-btn.-c-new {
+	display: flex;
+	margin-top: 1rem;
+}
+.-c-hbtns, .-c-hfooter, .-c-hdelall {
+	flex-shrink: 0;
+	padding: 0 .5rem;
+}
+.-c-hlist {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 0 .5rem;
+	margin-top: 1rem;
+}
+.-c-hitm {
+	display: flex;
+}
+.-c-history .-c-btn.-c-hname, .-c-history .-c-hdelall .-c-btn {
+	display: inline-block;
+	white-space: nowrap;
+	width: 100%;
+	overflow: hidden;
+	color: #0d0d0d;
+	text-align: left;
+	font-size: 1rem;
+	text-overflow: ellipsis;
+	padding-left: 8px;
+}
+.-c-history .-c-hfooter {
+	text-align: center;
+	font-size: .8rem;
+	opacity: .4;
+	padding: .5rem 0;
+	text-wrap: balance;
+}
+.-c-history .-c-hdelall .-c-btn {
+	text-align: center;
+	padding: .25rem;
+	font-size: .75rem;
+	height: fit-content;
+}
+.-c-sources {
+	border-left: 1px solid #cfcfcf;
 }
 .-c-sources .-c-mbar {
 	position: absolute;
@@ -312,14 +371,14 @@
 	border: none;
 
 }
-.-c-tbar .-c-btn, .-c-mbar .-c-btn {
+.-c-tbar .-c-btn, .-c-mbar .-c-btn, .-c-history .-c-btn {
 	width: 2rem;
 	height: 2rem;
 	color: #5d5d5d;
 	background: transparent;
 	border-radius: .5rem;
 }
-.-c-tbar .-c-btn:hover, .-c-mbar .-c-btn:hover {
+.-c-tbar .-c-btn:hover, .-c-mbar .-c-btn:hover, .-c-history .-c-btn:hover {
 	background: #e8e8e8;
 }
 .-c-btn:not(:disabled) {
