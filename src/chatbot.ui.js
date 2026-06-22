@@ -1,7 +1,7 @@
 import * as chatbot from './chatbot.core.js';
 import { createElement, addEvent, preventDefault, setClassName, toMenu, CLASS_PREFIX } from './chatbot.ui.utility.js';
 import { resolve, toHtml } from './chatbot.ui.md.js';
-import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_FOLD } from './chatbot.ui.icons.js';
+import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_FOLD, SVG_DOT } from './chatbot.ui.icons.js';
 import { Dropdown } from './lemonadejs.dropdown.js';
 
 const MAX_HEIGHT_OF_WIDGET_PERCENTAGE= 0.61;
@@ -32,7 +32,6 @@ const DONE_DELAY= 2000; // in milliseconds; time of showing that an action like 
  * @returns {ChatbotUi}
  */
 export function chatbotUi(chatbot, parent, config) {
-
 	let _isSplash= true;
 	let _isReadyToSend= true;
 	let _isTypeEverywhere= false;
@@ -45,14 +44,39 @@ export function chatbotUi(chatbot, parent, config) {
 	let _sourcesSidebarContent;
 	let _sourcesSidebarMsgObj;
 	let _sourcesSidebarState;
+	// Floating tooltip (added to the body to escape the constraints of overflow: hidden)
+	let _tooltipTarget= null;
+	const _tooltip= document.createElement('div');
+	_tooltip.className= CLASS_PREFIX + 'tooltip';
+	_tooltip.hidden= true;
+	document.body.appendChild(_tooltip);
+	function showFloatingTooltip(btn) {
+		const text= btn.getAttribute('data-tooltip');
+		if (!text) return;
+		_tooltipTarget= btn;
+		_tooltip.textContent= text;
+		const rect= btn.getBoundingClientRect();
+		_tooltip.style.top= (rect.bottom + 5) + 'px';
+		_tooltip.style.left= rect.right + 'px';
+		_tooltip.hidden= false;
+	}
+	function hideFloatingTooltip() {
+		_tooltipTarget= null;
+		_tooltip.hidden= true;
+	}
+	function attachFloatingTooltip(btn) {
+		addEvent(btn, 'mouseenter', () => showFloatingTooltip(btn));
+		addEvent(btn, 'mouseleave', () => hideFloatingTooltip());
+	}
 	const _widget= createElement(parent, 'div', 'widget splash');
+	const newBtnToAdd= !config || config.newBtn !== false;
 	const _mainP= createElement(_widget, 'div', 'root');
-	if (!config || config.closeBtn || config.newBtn !== false) {
+	if (!config || config.closeBtn || newBtnToAdd) {
 		const mbar= createElement(_mainP, 'div', 'mbar');
 		const mbarStart= createElement(mbar, 'div', 'start');
 		createElement(mbar, 'div', 'center');
 		const mbarEnd= createElement(mbar, 'div', 'end');
-		if (!config || config.newBtn !== false) {
+		if (newBtnToAdd) {
 			const newBtn= createBtn(mbarStart, 'new', SVG_NEW, 'New chat');
 			addEvent(newBtn, 'click', () => chatbot.reset());
 		}
@@ -297,9 +321,15 @@ export function chatbotUi(chatbot, parent, config) {
 						}
 						msgElement.innerHTML= toHtml(messageMd);
 					}
+					if (role != 'user') {
+						addCodeCopyBtns(msgElement);
+					}
 					const toolbar= createElement(msgContainer, 'div', 'tbar');
 					_toolbarByMsgObj.set(change.msgObj, toolbar);
 					const copyButton= createBtn(toolbar, 'copy', SVG_COPY, 'Copy');
+					copyButton.title= ''; // Disable the native tooltip
+					copyButton.setAttribute('data-tooltip', getConfigString('copyHover', 'Copy'));
+					attachFloatingTooltip(copyButton);
 					const copyButtonDefaultInner= copyButton.innerHTML;
 					addEvent(copyButton, 'click', () => {
 						navigator.clipboard.write([
@@ -311,7 +341,15 @@ export function chatbotUi(chatbot, parent, config) {
 						)
 						]).then(() => {
 							copyButton.innerHTML= getConfigString('doneBtn', SVG_DONE);
-							setTimeout(() => copyButton.innerHTML= copyButtonDefaultInner, DONE_DELAY);
+							copyButton.setAttribute('data-tooltip', 'Copied!');
+							copyButton.setAttribute('data-copied', 'true');
+							if (_tooltipTarget === copyButton) showFloatingTooltip(copyButton);
+							setTimeout(() => {
+								copyButton.innerHTML= copyButtonDefaultInner;
+								copyButton.setAttribute('data-tooltip', getConfigString('copyHover', 'Copy'));
+								copyButton.removeAttribute('data-copied');
+								if (_tooltipTarget === copyButton) showFloatingTooltip(copyButton);
+							}, DONE_DELAY);
 						}).catch(() => {
 							// TODO Error handling when failed to copy; maybe hide copy button
 						});
@@ -425,7 +463,7 @@ export function chatbotUi(chatbot, parent, config) {
 		const done= new Set();
 		if (refsMap) {
 			const refsValues= [];
-			for (value of refsMap.values()) {
+			for (const value of refsMap.values()) {
 				refsValues.push(value);
 			}
 			refsValues.sort((a, b) => a - b);
@@ -623,4 +661,57 @@ async function addOptionsControl(form, beforeChild, optionsPromis, selected, opt
 			chatScopeOptions.push(dropdown);
 		}
 	}
+}
+
+
+/**
+ * Add a copy button to each code block (pre element) within msgElement.
+ * Uses MutationObserver to handle dynamically added pre elements (e.g. during streaming).
+ * @param {Element} msgElement
+ */
+function addCodeCopyBtns(msgElement) {
+	function processPreElement(pre) {
+		if (pre.parentNode && pre.parentNode.classList.contains(CLASS_PREFIX + 'code-block'))
+			return;
+		var code= pre.querySelector('code');
+		var wrapper= document.createElement('div');
+		wrapper.className= CLASS_PREFIX + 'code-block';
+		pre.parentNode.insertBefore(wrapper, pre);
+		wrapper.appendChild(pre);
+		var header= document.createElement('div');
+		header.className= CLASS_PREFIX + 'code-header';
+		var label= document.createElement('span');
+		label.className= CLASS_PREFIX + 'code-lang';
+		label.innerHTML= SVG_DOT + 'Code';
+		var actions= document.createElement('div');
+		actions.className= CLASS_PREFIX + 'code-header-actions';
+		var copyBtn= document.createElement('button');
+		copyBtn.className= CLASS_PREFIX + 'btn ' + CLASS_PREFIX + 'code-copy';
+		copyBtn.setAttribute('data-tooltip', 'Copy');
+		copyBtn.innerHTML= SVG_COPY;
+		copyBtn.addEventListener('click', function () {
+			try {
+				navigator.clipboard
+					.writeText(code ? code.textContent : pre.textContent)
+					.then(function () {
+						copyBtn.innerHTML= SVG_DONE;
+						copyBtn.setAttribute('data-tooltip', 'Copied!');
+						copyBtn.setAttribute('data-copied', 'true');
+						setTimeout(function () {
+							copyBtn.innerHTML= SVG_COPY;
+							copyBtn.setAttribute('data-tooltip', 'Copy');
+							copyBtn.removeAttribute('data-copied');
+						}, DONE_DELAY);
+					});
+			} catch (e) {}
+		});
+		actions.appendChild(copyBtn);
+		header.appendChild(label);
+		header.appendChild(actions);
+		wrapper.insertBefore(header, pre);
+	}
+	msgElement.querySelectorAll('pre').forEach(processPreElement);
+	new MutationObserver(function () {
+		msgElement.querySelectorAll('pre').forEach(processPreElement);
+	}).observe(msgElement, { childList: true, subtree: true });
 }

@@ -467,6 +467,96 @@
 	padding: 0;
 	font-size: inherit;
 }
+
+/* #region Code block with header bar */
+.-c-code-block {
+	width: fit-content;
+	max-width: 100%;
+	margin: 0.5rem 0;
+	border: 1px solid #e1e1e8;
+	border-radius: 0.375rem;
+	overflow: hidden;
+}
+.-c-code-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 4px 6px 4px 10px;
+	background: #f5f5f7;
+	border-bottom: 1px solid #e1e1e8;
+	gap: 8px;
+}
+.-c-code-lang {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.75rem;
+	color: #888;
+	user-select: none;
+}
+.-c-code-header-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+.-c-md .-c-code-block pre {
+	margin: 0;
+	border-radius: 0;
+}
+.-c-code-copy {
+	position: relative;
+	color: #666;
+	background: transparent;
+	min-width: unset;
+	height: auto;
+	padding: 3px;
+	border-radius: 4px;
+}
+.-c-code-copy:hover {
+	background: #e4e6e8;
+	color: #1a1a1a;
+}
+.-c-code-copy::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	top: calc(100% + 5px);
+	right: 0;
+	background: #1a1a1a;
+	color: #fff;
+	padding: 3px 8px;
+	border-radius: 4px;
+	font-size: 0.75rem;
+	white-space: nowrap;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.1s;
+	z-index: 10;
+}
+.-c-code-copy:hover::after,
+.-c-code-copy[data-copied="true"]::after {
+	opacity: 1;
+}
+.-c-tbar .-c-copy {
+	/* floating tooltip attached via JS */
+}
+.-c-tooltip {
+	position: fixed;
+	font-family: ui-sans-serif,-apple-system,system-ui,Segoe UI,Helvetica,Apple Color Emoji,Arial,sans-serif,Segoe UI Emoji,Segoe UI Symbol;
+	font-size: 0.75rem;
+	background: #1a1a1a;
+	color: #fff;
+	padding: 3px 8px;
+	border-radius: 4px;
+	white-space: nowrap;
+	pointer-events: none;
+	z-index: 9999;
+	transform: translateX(-100%);
+}
+.-c-tooltip[hidden] {
+	display: none;
+}
+/* #endregion Code block with header bar */
+
 .-c-md table {
 	border: none;
 	border-spacing: 0;

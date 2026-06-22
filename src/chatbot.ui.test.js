@@ -37,6 +37,18 @@ describe('chatbot.ui.test.js', () => {
 				`Element not found: ${element} - body HTML: ${document.querySelector("body").innerHTML}`).not.toBeNull());
 	});
 
+	test('code copy button', async () => {
+		document.body.innerHTML= '';
+		const codeBot= chatbot.chatbot({connector: codeBlockConnector()});
+		ui.chatbotUi(codeBot, document.querySelector('body'), {});
+		await codeBot.send('hi');
+
+		expectElement('.-c-code-block', 'code block wrapper').not.toBeNull();
+		expectElement('.-c-code-header', 'code block header').not.toBeNull();
+		expectElement('.-c-code-copy', 'copy button').not.toBeNull();
+		expect(document.querySelectorAll('.-c-code-copy').length, 'one copy button per code block').toBe(1);
+	});
+
 	test('custom title and footer', async () => {
 		const titleElement= document.querySelector('.-c-title');
 		expectElement('.-c-title', 'Title element not found: .-c-title').not.toBeNull();
@@ -64,6 +76,22 @@ function toUpperCaseConnector() {
 			return new Promise((resolve) => {
 				setTimeout(() => {
 					callback(msg.toUpperCase());
+					resolve();
+				}, 100);
+			});
+		}
+	};
+}
+
+/**
+ * @returns {chatbot.Connector}
+ */
+function codeBlockConnector() {
+	return {
+		send: function(callback) {
+			return new Promise((resolve) => {
+				setTimeout(() => {
+					callback('```\nconsole.log("hello");\n```');
 					resolve();
 				}, 100);
 			});
