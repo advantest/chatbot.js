@@ -1,5 +1,5 @@
 // @ts-check
-import { resolve, toHtml } from './chatbot.ui.md.js';
+import { resolve, mdToHtml, renderMd } from './chatbot.ui.md.js';
 
 describe('chatbot.ui.md.test.js', () => {
 
@@ -51,6 +51,77 @@ describe('chatbot.ui.md.test.js', () => {
 			const reverted= resolved.replace(/\[\[(\d+)\]\]/g, '[[missed: $1]]').replace(/<a[^>]*?href="(\d+)[^<]*<\/a>/g, '[[$1]]');
 			expect(reverted).toBe(withRefs);
 		});
+	});
+
+	// mdToHtml: raw, non-interactive HTML string (used e.g. for clipboard/export).
+	test('mdToHtml - renders a code fence as a raw <pre> without interactive chrome', async () => {
+		const html= mdToHtml('```python\nprint(1)\n```');
+
+		expect(html.includes('<pre>'), 'pre element').toBe(true);
+		expect(html.includes('-c-code-block'), 'no code-block wrapper').toBe(false);
+		expect(html.includes('-c-code-header'), 'no code-block header').toBe(false);
+		expect(html.includes('-c-code-copy'), 'no copy button').toBe(false);
+	});
+
+	test('mdToHtml - renders basic Markdown to HTML', async () => {
+		expect(mdToHtml('**bold**').includes('<strong>bold</strong>'), 'bold').toBe(true);
+	});
+
+	// renderMd: renders into a DOM element including the interactive copy button.
+	test('renderMd - adds a code-block wrapper, header and copy button', async () => {
+		const element= document.createElement('div');
+		renderMd(element, '```python\nprint(1)\n```');
+
+		expect(element.querySelector('.-c-code-block'), 'code block wrapper').not.toBeNull();
+		expect(element.querySelector('.-c-code-header'), 'code block header').not.toBeNull();
+		expect(element.querySelector('.-c-code-copy'), 'copy button').not.toBeNull();
+		expect(element.querySelector('pre'), 'pre element').not.toBeNull();
+		expect(element.querySelectorAll('.-c-code-copy').length, 'one copy button per code block').toBe(1);
+	});
+
+	test('renderMd - re-rendering keeps exactly one copy button per code block', async () => {
+		const element= document.createElement('div');
+		renderMd(element, '```\na\n```');
+		renderMd(element, '```\nb\n```'); // simulates a streaming update replacing the content
+
+		expect(element.querySelectorAll('.-c-code-block').length, 'one code block').toBe(1);
+		expect(element.querySelectorAll('.-c-code-copy').length, 'one copy button').toBe(1);
+		expect(element.innerHTML.includes('b'), 'shows the latest content').toBe(true);
+	});
+
+	test('renderMd - text without code blocks has no copy button', async () => {
+		const element= document.createElement('div');
+		renderMd(element, 'just some **text**');
+
+		expect(element.querySelector('.-c-code-copy'), 'no copy button').toBeNull();
+		expect(element.innerHTML.includes('<strong>text</strong>'), 'rendered text').toBe(true);
+	});
+
+	test('renderMd - copying a code block strips the trailing newline', async () => {
+		const element= document.createElement('div');
+		renderMd(element, '```\nconsole.log(1);\n```');
+
+		const originalClipboard= navigator.clipboard;
+		let copied= null;
+		Object.defineProperty(navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText: /** @param {string} t */ function (t) { copied= t; return Promise.resolve(); } },
+		});
+
+		try {
+			const copyBtn= element.querySelector('.-c-code-copy');
+			expect(copyBtn, 'copy button exists').not.toBeNull();
+			if (!copyBtn) return;
+			copyBtn.dispatchEvent(new Event('click'));
+			await Promise.resolve();
+
+			expect(copied, 'copied text has no trailing newline').toBe('console.log(1);');
+		} finally {
+			Object.defineProperty(navigator, 'clipboard', {
+				configurable: true,
+				value: originalClipboard,
+			});
+		}
 	});
 
 });

@@ -1,7 +1,10 @@
 // @ts-check
 import markdownit from 'markdown-it';
 import { katex } from '@mdit/plugin-katex';
-import { createElement } from './chatbot.ui.utility.js';
+import { createElement, CLASS_PREFIX } from './chatbot.ui.utility.js';
+import { SVG_COPY, SVG_DONE } from './chatbot.ui.icons.js';
+
+const DONE_DELAY= 2000; // in milliseconds; time of showing that copy to clipboard has been done
 
 const mdit= markdownit({html: true}).use(katex).use(function (md) {
 	const tagsRegExp= new RegExp('^\\s*<[/]?t(able|head|body|foot|r|h|d)\\b(\\s+(colspan|rowspan)\\s*=\\s*[\'"]\\d+[\'"])*\\s*>\\s*$', 'i');
@@ -33,9 +36,14 @@ const mdit= markdownit({html: true}).use(katex).use(function (md) {
 });
 
 /**
+ * Converts Markdown to a raw, non-interactive HTML string (no copy buttons or
+ * other interactive chrome). Use it for clipboard/export or wherever a pure
+ * string is needed. To render into the DOM with interactive elements, use
+ * renderMd() instead.
  * @param {string} markdown
+ * @returns {string}
  */
-export function toHtml(markdown) {
+export function mdToHtml(markdown) {
 
 	// surround table tags with '\n\n...\n\n' so they become 'html_block', not 'html_inline' tokens
 	// TODO: surrounding needs to be reverted in code phrases and blocks
@@ -55,6 +63,20 @@ export function toHtml(markdown) {
 				.replace(/&lt;a\b((?:\s+(?:class|href|target|title|ref)\s*=\s*"[^"]*")*)\s*(?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;)(?=[^<]*<\/code\b)/g,
 						'<a$1></a>')
 
+}
+
+/**
+ * Renders Markdown into the given element, including interactive elements like
+ * the code copy buttons (and potentially further interactive elements in the
+ * future). This is the single entry point for putting rendered Markdown into
+ * the DOM: call it instead of setting innerHTML directly so that interactive
+ * elements are never missed, also on every streaming update.
+ * @param {Element} element
+ * @param {string} markdown
+ */
+export function renderMd(element, markdown) {
+	element.innerHTML= mdToHtml(markdown);
+	addCodeCopyBtns(element);
 }
 
 const FIRST_REF_INDEX= 0; // 1 - if [[1]] refers to `refs[0]` and not `refs[1]`; 0 - otherwise ([[0]]: first reference)
@@ -125,4 +147,53 @@ export function resolve(answer, answerWithRefs, refs, refsMap, baseUrl, target) 
 	result= result.replace(/(``[`]+)(<a\b)/g, '$1\n$2');
 
 	return result + answer.substring(restStart);
+}
+
+/**
+ * Add a copy button to each code block (pre element) within element.
+ * Internal helper used by renderMd(); not exported. One-shot DOM
+ * post-processing that runs on every render instead of using a MutationObserver.
+ * @param {Element} element
+ */
+function addCodeCopyBtns(element) {
+	element.querySelectorAll('pre').forEach(function (pre) {
+		const parent= pre.parentElement;
+		if (!parent) return;
+		if (parent.classList.contains(CLASS_PREFIX + 'code-block')) return;
+		const code= pre.querySelector('code');
+		const wrapper= document.createElement('div');
+		wrapper.className= CLASS_PREFIX + 'code-block';
+		parent.insertBefore(wrapper, pre);
+		wrapper.appendChild(pre);
+		const header= document.createElement('div');
+		header.className= CLASS_PREFIX + 'code-header';
+		const actions= document.createElement('div');
+		actions.className= CLASS_PREFIX + 'code-header-actions';
+		const copyBtn= document.createElement('button');
+		copyBtn.className= CLASS_PREFIX + 'btn ' + CLASS_PREFIX + 'code-copy';
+		copyBtn.setAttribute('data-tooltip', 'Copy');
+		copyBtn.innerHTML= SVG_COPY;
+		copyBtn.addEventListener('click', function () {
+			try {
+				// markdown-it appends a trailing newline to the code fence content;
+				// strip it so the copied text matches the other (newline-free) copies.
+				const text= ((code ? code.textContent : pre.textContent) || '').replace(/\n$/, '');
+				navigator.clipboard.writeText(text).then(function () {
+					copyBtn.innerHTML= SVG_DONE;
+					copyBtn.setAttribute('data-tooltip', 'Copied!');
+					copyBtn.setAttribute('data-copied', 'true');
+					setTimeout(function () {
+						copyBtn.innerHTML= SVG_COPY;
+						copyBtn.setAttribute('data-tooltip', 'Copy');
+						copyBtn.removeAttribute('data-copied');
+					}, DONE_DELAY);
+				}).catch(function () {
+					// TODO Error handling when failed to copy; maybe hide copy button
+				});
+			} catch (e) {}
+		});
+		actions.appendChild(copyBtn);
+		header.appendChild(actions);
+		wrapper.insertBefore(header, pre);
+	});
 }

@@ -1,7 +1,7 @@
 import * as chatbot from './chatbot.core.js';
 import { createElement, addEvent, preventDefault, setClassName, CLASS_PREFIX } from './chatbot.ui.utility.js';
-import { resolve, toHtml } from './chatbot.ui.md.js';
-import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD, SVG_DOT } from './chatbot.ui.icons.js';
+import { resolve, mdToHtml, renderMd } from './chatbot.ui.md.js';
+import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD } from './chatbot.ui.icons.js';
 import { Dropdown } from './lemonadejs.dropdown.js';
 
 const MAX_HEIGHT_OF_WIDGET_PERCENTAGE= 0.61;
@@ -387,10 +387,7 @@ export function chatbotUi(chatbot, parent, config) {
 							messageMd= resolve(message, change.msgObj.contentWithRefs, change.msgObj.refs, refsMap, chatbot.config.refsBaseUrl);
 							_refsMapByMsgObj.set(change.msgObj, refsMap);
 						}
-						msgElement.innerHTML= toHtml(messageMd);
-					}
-					if (role != 'user') {
-						addCodeCopyBtns(msgElement);
+						renderMd(msgElement, messageMd);
 					}
 					const toolbar= createElement(msgContainer, 'div', 'tbar');
 					_toolbarByMsgObj.set(change.msgObj, toolbar);
@@ -405,7 +402,7 @@ export function chatbotUi(chatbot, parent, config) {
 								role == 'user'
 								? { 'text/plain': new Blob([change.msgObj.content], { type: 'text/plain' }) }
 								: { 'text/plain': new Blob([change.msgObj.content], { type: 'text/plain' }),
-									'text/html': new Blob([toHtml(change.msgObj.content)], { type: 'text/html' }) }
+									'text/html': new Blob([mdToHtml(change.msgObj.content)], { type: 'text/html' }) }
 						)
 						]).then(() => {
 							copyButton.innerHTML= getConfigString('doneBtn', SVG_DONE);
@@ -435,7 +432,7 @@ export function chatbotUi(chatbot, parent, config) {
 				if (!streamElement || change.msgObj.content === undefined) return;
 				if (streamElement._a != change.msgObj.content) {
 					streamElement._a= change.msgObj.content;
-					streamElement.innerHTML= toHtml(change.msgObj.content);
+					renderMd(streamElement, change.msgObj.content);
 				}
 				if (change.end) {
 					streamElement.parentNode.className+= ' ' + CLASS_PREFIX + 'done';
@@ -449,7 +446,7 @@ export function chatbotUi(chatbot, parent, config) {
 				_refsMapByMsgObj.set(change.msgObj, refsMap);
 				if (streamElement._a != groundedAnswer) {
 					streamElement._a= groundedAnswer;
-					streamElement.innerHTML= toHtml(groundedAnswer);
+					renderMd(streamElement, groundedAnswer);
 				}
 				if (change.end) {
 					streamElement.parentNode.className+= ' ' + CLASS_PREFIX + 'ref-done';
@@ -741,54 +738,3 @@ async function addOptionsControl(form, beforeChild, optionsPromis, selected, opt
 }
 
 
-/**
- * Add a copy button to each code block (pre element) within msgElement.
- * Uses MutationObserver to handle dynamically added pre elements (e.g. during streaming).
- * @param {Element} msgElement
- */
-function addCodeCopyBtns(msgElement) {
-	function processPreElement(pre) {
-		if (pre.parentNode && pre.parentNode.classList.contains(CLASS_PREFIX + 'code-block'))
-			return;
-		var code= pre.querySelector('code');
-		var wrapper= document.createElement('div');
-		wrapper.className= CLASS_PREFIX + 'code-block';
-		pre.parentNode.insertBefore(wrapper, pre);
-		wrapper.appendChild(pre);
-		var header= document.createElement('div');
-		header.className= CLASS_PREFIX + 'code-header';
-		var label= document.createElement('span');
-		label.className= CLASS_PREFIX + 'code-lang';
-		label.innerHTML= SVG_DOT + 'Code';
-		var actions= document.createElement('div');
-		actions.className= CLASS_PREFIX + 'code-header-actions';
-		var copyBtn= document.createElement('button');
-		copyBtn.className= CLASS_PREFIX + 'btn ' + CLASS_PREFIX + 'code-copy';
-		copyBtn.setAttribute('data-tooltip', 'Copy');
-		copyBtn.innerHTML= SVG_COPY;
-		copyBtn.addEventListener('click', function () {
-			try {
-				navigator.clipboard
-					.writeText(code ? code.textContent : pre.textContent)
-					.then(function () {
-						copyBtn.innerHTML= SVG_DONE;
-						copyBtn.setAttribute('data-tooltip', 'Copied!');
-						copyBtn.setAttribute('data-copied', 'true');
-						setTimeout(function () {
-							copyBtn.innerHTML= SVG_COPY;
-							copyBtn.setAttribute('data-tooltip', 'Copy');
-							copyBtn.removeAttribute('data-copied');
-						}, DONE_DELAY);
-					});
-			} catch (e) {}
-		});
-		actions.appendChild(copyBtn);
-		header.appendChild(label);
-		header.appendChild(actions);
-		wrapper.insertBefore(header, pre);
-	}
-	msgElement.querySelectorAll('pre').forEach(processPreElement);
-	new MutationObserver(function () {
-		msgElement.querySelectorAll('pre').forEach(processPreElement);
-	}).observe(msgElement, { childList: true, subtree: true });
-}

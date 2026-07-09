@@ -539,19 +539,11 @@
 .-c-code-header {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	padding: 4px 6px 4px 10px;
+	justify-content: flex-end;
+	padding: 4px 6px;
 	background: #f5f5f7;
 	border-bottom: 1px solid #e1e1e8;
 	gap: 8px;
-}
-.-c-code-lang {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 0.75rem;
-	color: #888;
-	user-select: none;
 }
 .-c-code-header-actions {
 	display: flex;
