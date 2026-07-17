@@ -282,7 +282,6 @@
 }
 .-c-msg {
 	width: auto;
-	overflow: auto;
 	overflow-wrap: break-word;
 }
 .-c-msg-p * {
