@@ -1,7 +1,7 @@
 // @ts-check
 import markdownit from 'markdown-it';
 import { katex } from '@mdit/plugin-katex';
-import { createElement, CLASS_PREFIX } from './chatbot.ui.utility.js';
+import { createElement, CLASS_PREFIX, UNDEFINED } from './chatbot.ui.utility.js';
 import { SVG_COPY, SVG_DONE } from './chatbot.ui.icons.js';
 
 const DONE_DELAY= 2000; // in milliseconds; time of showing that copy to clipboard has been done
@@ -130,7 +130,7 @@ export function resolve(answer, answerWithRefs, refs, refsMap, baseUrl, target) 
 			refsMap.set(refChunk.h, ref);
 			nextRef++;
 		}
-		const dummy= createElement(undefined, 'div');
+		const dummy= createElement(UNDEFINED, 'div');
 
 		/** @type {any} */
 		const element= createElement(dummy, 'a', 'ref');

@@ -24,7 +24,15 @@ const STREAM= true;
  */
 
 /**
- * @typedef {Record<string, unknown> & { role: string, content: string | undefined}} MessageObject
+ * @typedef {Array.<Record<string, unknown> & { h: string }>} References
+ */
+
+/**
+ * @typedef {Record<string, unknown> & { role: string,
+ *                                       content: string | undefined,
+ *                                       contentWithRefs: string | undefined,
+ *                                       refs: References | undefined,
+ *                                       options: Record<string, unknown> | undefined }} MessageObject
  */
 
 /**
@@ -37,6 +45,7 @@ const STREAM= true;
  *             options?: Record<string, unknown>) => Promise<unknown>} [sendHook]
  * @property {Array.<Record<string, unknown>> | string | function} [options]
  * @property {'inmemory' | 'indexeddb' | History} [history]
+ * @property {string} [refsBaseUrl]
  */
 
 /**
@@ -47,9 +56,9 @@ const STREAM= true;
 /**
  * @typedef {Object} Connector
  * @property {(callback: (delta: string, done?: boolean,
- *                        refs?: Array.<Record<string, unknown>>, refsDelta?: string, refsDone?: boolean) => void,
+ *                        refs?: References, refsDelta?: string, refsDone?: boolean) => void,
  *              message: string|undefined, chatbot: Chatbot, options?: Record<string, unknown>) => Promise<void>} send
- * @property {function(): void} reset
+ * @property {function(): void} [reset]
  */
 
 /**
@@ -100,7 +109,7 @@ export function chatbot(urlOrConfig) {
 				msg, chatbot, options);
 
 		// ...
-		/** @type{(text: string | undefined, done: boolean) => void} */
+		/** @type {(text: string | undefined, done: boolean) => void} */
 		function _receive(text, done) {
 			_apply(chatbot, text, msgObj, true, done);
 		}
@@ -149,7 +158,7 @@ export function chatbot(urlOrConfig) {
 	 * @param {MessageObject | undefined} [msgObj]
 	 * @param {boolean} [receive]
 	 * @param {boolean} [done]
-	 * @param {Array.<Record<string, unknown>>} [refs]
+	 * @param {References} [refs]
 	 * @param {string} [refsDelta]
 	 * @param {boolean} [refsDone]
 	 * @param {boolean} [reset]
@@ -158,6 +167,7 @@ export function chatbot(urlOrConfig) {
 	 * @returns {MessageObject}
 	 */
 	function _apply(chatbot, delta, msgObj, receive, done, refs, refsDelta, refsDone, reset, init, options) {
+		/** @type {MessageObject} */ // @ts-ignore
 		const target= msgObj === undefined ? { role: receive ? 'assistant' : 'user', content: delta } : msgObj;
 		if (refs !== undefined) {
 			target.refs= refs;

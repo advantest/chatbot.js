@@ -1,3 +1,4 @@
+// @ts-check
 import * as chatbot from './chatbot.core.js';
 import * as ui from './chatbot.ui.js';
 
@@ -11,9 +12,8 @@ describe('chatbot.ui.test.js', () => {
 	beforeEach(() => {
 		document.body.innerHTML= '';
 		bot= chatbot.chatbot({connector: toUpperCaseConnector()});
-		const body= document.querySelector('body');
 		const config= {title: 'Dummy Title', footerHtml: '<span class="dummy-footer">FOOOTER</span>'};
-		ui.chatbotUi(bot, body, config);
+		ui.chatbotUi(bot, queryExpectedElement('body'), config);
 	});
 
 	test('start', async () => {
@@ -34,13 +34,13 @@ describe('chatbot.ui.test.js', () => {
 		// elements that should exist at start
 		['.-c-widget', '.-c-widget', '.-c-form', '.-c-footer', '.-c-msg', '.-c-role-user', '.-c-role-assistant'].
 			forEach(element => expectElement(element,
-				`Element not found: ${element} - body HTML: ${document.querySelector("body").innerHTML}`).not.toBeNull());
+				`Element not found: ${element} - body HTML: ${queryExpectedElement('body').innerHTML}`).not.toBeNull());
 	});
 
 	test('code copy button', async () => {
 		document.body.innerHTML= '';
 		const codeBot= chatbot.chatbot({connector: codeBlockConnector()});
-		ui.chatbotUi(codeBot, document.querySelector('body'), {});
+		ui.chatbotUi(codeBot, queryExpectedElement('body'), {});
 		await codeBot.send('hi');
 
 		expectElement('.-c-code-block', 'code block wrapper').not.toBeNull();
@@ -50,11 +50,11 @@ describe('chatbot.ui.test.js', () => {
 	});
 
 	test('custom title and footer', async () => {
-		const titleElement= document.querySelector('.-c-title');
+		const titleElement= queryExpectedElement('.-c-title');
 		expectElement('.-c-title', 'Title element not found: .-c-title').not.toBeNull();
 		expect(titleElement.textContent, 'No "Dummy Title"').toBe('Dummy Title');
 
-		const footerElement= document.querySelector('.-c-footer');
+		const footerElement= queryExpectedElement('.-c-footer');
 		expectElement('.-c-footer', 'Title element not found: .-c-footer').not.toBeNull();
 		expectElement('.dummy-footer', 'Custom footer element not found: .dummy-footer').not.toBeNull();
 		expect(footerElement.innerHTML, '').toBe('<span class="dummy-footer">FOOOTER</span>');
@@ -75,11 +75,12 @@ function toUpperCaseConnector() {
 		send: function(callback, msg) {
 			return new Promise((resolve) => {
 				setTimeout(() => {
-					callback(msg.toUpperCase());
+					callback((msg ? msg : '').toUpperCase());
 					resolve();
 				}, 100);
 			});
-		}
+		},
+		reset: function() {}
 	};
 }
 
@@ -95,17 +96,18 @@ function codeBlockConnector() {
 					resolve();
 				}, 100);
 			});
-		}
+		},
+		reset: function() {}
 	};
 }
 
 /**
  * @param {string} selector
  * @param {string} message
- * @param {number} index
+ * @param {number} [index]
  */
 function expectElement(selector, message, index) {
-	const bodyHtml= ` - body HTML: ${document.querySelector("body").innerHTML}`
+	const bodyHtml= ` - body HTML: ${queryExpectedElement('body').innerHTML}`
 	const messageWithBodyHtml= message + bodyHtml;
 	if (index == undefined) return expect(document.querySelector(selector), messageWithBodyHtml);
 	const allElements= document.querySelectorAll(selector);
@@ -113,4 +115,17 @@ function expectElement(selector, message, index) {
 		`Element not found: there are ${allElements.length} "${selector}" elements, so none of index ${index}`;
 	expect(allElements.length, onFailMsg + bodyHtml).toBeGreaterThan(index);
 	return expect(allElements.item(index), messageWithBodyHtml)
+}
+
+/**
+ * @param {string} selector
+ * @returns {HTMLElement} A non-null HTMLElement; if no element is found, the test will fail
+ */
+function queryExpectedElement(selector) {
+	const element= document.querySelector(selector);
+	if (element === null) {
+		fail(`document.querySelector('${selector}') not found`);
+	}
+	// @ts-ignore
+	return element;
 }

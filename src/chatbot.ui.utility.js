@@ -1,14 +1,19 @@
+// @ts-check
 export const CLASS_PREFIX= '-c-';
+
+/** Constant to get more compact code while maintaining readability, since `undefined` will be compacted to `void 0`,
+ * while `UNDEFINED` will be compacted to `0`, saving five chars. */
+export const UNDEFINED= 0;
 
 /**
  * Creates and appends a new DOM element to a specified parent.
  *
- * @param {Element | undefined} parent - The parent DOM element to which the new element will be appended.
- * @param {string} [name='div'] - The name of the element to create.
- * @param {string} [className=''] - Space-separated list of class names without CLASS_PREFIX to assign with CLASS_PREFIX
- *								  to the new element.
+ * @param {Element | 0} parent - The parent DOM element to which the new element will be appended.
+ * @param {string | 0} [name='div'] - The name of the element to create.
+ * @param {string | 0} [className=''] - Space-separated list of class names without CLASS_PREFIX to assign with
+ *								        CLASS_PREFIX to the new element.
  * @param {string} [text=''] - Optional text content to set for the new element.
- * @returns {Element}
+ * @returns {HTMLElement}
  */
 export function createElement(parent, name, className, text) {
 	var element = document.createElement(name ? name : 'div');
@@ -34,18 +39,21 @@ export function setClassName(element, value) {
 }
 
 /**
- * @param {Element} element
+ * @param {Element | Window} element
  * @param {string} type
  * @param {Function} fn
  */
 export function addEvent(element, type, fn) {
 	if (element.addEventListener) {
+		// @ts-ignore
 		element.addEventListener(type, fn, false);
+	// @ts-ignore
 	} else if (element.attachEvent) {
 		element['e' + type + fn] = fn;
 		element[type + fn] = function() {
 			element['e' + type + fn](window.event);
 		}
+		// @ts-ignore
 		element.attachEvent('on' + type, element[type + fn]);
 	}
 }
@@ -130,14 +138,7 @@ export function toMenu(master, items, data, chooseFn, applyFn, cancelFn, armFn) 
 
 /**
  * @param {Element} element
- * @param {string} attribute
- * @param {string} value
  */
-function setAttribute(element, attribute, value) {
-	element.setAttribute(attribute, value);
-	return element;
-}
-
 function getClassName(element) {
 	return element.className;
 }

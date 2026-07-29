@@ -1,5 +1,6 @@
+// @ts-check
 import * as chatbot from './chatbot.core.js';
-import { createElement, addEvent, preventDefault, setClassName, CLASS_PREFIX } from './chatbot.ui.utility.js';
+import { createElement, addEvent, preventDefault, setClassName, UNDEFINED, CLASS_PREFIX } from './chatbot.ui.utility.js';
 import { resolve, mdToHtml, renderMd } from './chatbot.ui.md.js';
 import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD } from './chatbot.ui.icons.js';
 import { Dropdown } from './lemonadejs.dropdown.js';
@@ -9,21 +10,20 @@ const UI_THROTTLE_DELAY= 100; // in milliseconds
 const DONE_DELAY= 2000; // in milliseconds; time of showing that an action like copy to clipboar has been done
 const HISTORY_FOOTER_DEFAULT= 'Your chats are saved locally in your browser\'s IndexedDB.';
 
-
 /**
  * @typedef {Object} ChatbotUi
- * @property {chatbot.Observer} ...
  * @property {(str: string, smart?: boolean) => ChatbotUi} enter - Sets the input field value; with the `smart` option,
  *   the behavior depends on the state:
  *   - If the chat is empty, the value is send as user message instead.
  *   - If the chat contains an equal user message or the input field value ends with it, nothing happens.
  *   - Otherwise, it will be entered into the input field or - when the input field is not empty - added as new line
- * @property {function(boolean): ChatbotUi} typeEverywhere - Sets the type everywhere feature. When enabled, the input
- *   does not require to have the focus; disabled by default.
- * @property {function(('off'|'top'|'bottom')='top'): ChatbotUi} autoScrollType - Auto-scroll behavior:
- *   - 'off': Disables auto-scrolling.
- *   - 'top': Scrolls to the top.
+ * @property {(isTypeEverywhere: boolean) => ChatbotUi} typeEverywhere - Sets the type everywhere feature.
+ *   When enabled, the input does not require to have the focus; disabled by default.
+ * @property {(autoScrollType: 'top' | 'bottom' | 'off') => ChatbotUi} autoScroll - Auto-scroll behavior:
+ *   - 'top' (default): Scrolls to the top.
  *   - 'bottom': Scrolls to the bottom.
+ *   - 'off': Disables auto-scrolling.
+ * @property {() => ChatbotUi} focus
  */
 
 /**
@@ -84,7 +84,7 @@ export function chatbotUi(chatbot, parent, config) {
 		_historySidebar.setAttribute('aria-expanded', newState);
 	}
 	function updateHistorySidebar() {
-		if (!_historySidebar) return;
+		if (!_historySidebar || !chatbot.history) return;
 		_historySidebar.innerHTML= '';
 		const buttonsDiv= createElement(_historySidebar, 'div', 'hbtns');
 		const sidebarBtn= createBtn(buttonsDiv, 'sidebar', SVG_SIDEBAR, 'Open sidebar');
@@ -99,13 +99,14 @@ export function chatbotUi(chatbot, parent, config) {
 		if (note) {
 			createElement(_historySidebar, 'div', 'hfooter', note);
 		}
-		const deleteAllbtn= createElement(
+		/** @type {HTMLButtonElement} */ // @ts-ignore
+		const deleteAllBtn= createElement(
 			createElement(_historySidebar, 'div', 'hdelall'), 'button', 'btn', 'Delete All');
-		deleteAllbtn.title= 'Delete all chats';
-		addEvent(deleteAllbtn, 'click', () => {
-			chatbot.history.removeAll().then(() => updateHistorySidebar());
+		deleteAllBtn.title= 'Delete all chats';
+		addEvent(deleteAllBtn, 'click', () => {
+			chatbot.history?.removeAll().then(() => updateHistorySidebar());
 		});
-		deleteAllbtn.disabled= true;
+		deleteAllBtn.disabled= true;
 		chatbot.history.list().then((descs) => {
 			for (let i= descs.length; i > 0; i--) {
 				const historyItem= createElement(historyList, 'div', 'hitm');
@@ -115,7 +116,7 @@ export function chatbotUi(chatbot, parent, config) {
 					btn.title= desc.name;
 				}
 				addEvent(btn, 'click', () => {
-					chatbot.history.get(desc).then((messages) => {
+					chatbot.history?.get(desc).then((messages) => {
 						chatbot.reset(messages, false, desc);
 					}).catch(_ => {}); // TODO: Show error message (currently, nothing happens)
 				});
@@ -124,11 +125,11 @@ export function chatbotUi(chatbot, parent, config) {
 					delBtn.title= 'Delete: ' + desc.name;
 				}
 				addEvent(delBtn, 'click', () => {
-					chatbot.history.remove(desc).then(() => updateHistorySidebar());
+					chatbot.history?.remove(desc).then(() => updateHistorySidebar());
 				});
 			}
 			if (descs.length) {
-				deleteAllbtn.disabled= false;
+				deleteAllBtn.disabled= false;
 			}
 		});
 	}
@@ -154,6 +155,7 @@ export function chatbotUi(chatbot, parent, config) {
 		}
 	}
 	const main= createElement(_mainP, 'div', 'main');
+
 	const scroll= createElement(main, 'div', 'scroll');
 	const sticky= createElement(main, 'div', 'sticky');
 	const title= createElement(scroll, 'h1', 'title', getConfigString('title'));
@@ -162,8 +164,12 @@ export function chatbotUi(chatbot, parent, config) {
 		title.innerHTML= titleHtml;
 	}
 	const _msgArea= createElement(scroll, 'div', 'chat');
-	const selected= {};
 	const form= createElement(createElement(sticky, 'div', 'form-area'), 'form', 'form');
+
+	/** @type {Record<string, unknown>} */
+	const selected= {};
+
+	/** @type {HTMLTextAreaElement} */ // @ts-ignore
 	const _input= createElement(form, 'textarea', 'input');
 
 	const _map= new Map();
@@ -175,21 +181,23 @@ export function chatbotUi(chatbot, parent, config) {
 		return undefined;
 	}
 
-	// Resize and auto-scroll as throttled function: will be invoked only once or twice every
-	// THROTTLE_DELAY_MSEC: immediately and - if it has been called more than once - after THROTTLE_DELAY_MSEC
-	// since the first call.
-	/** @type {(callback: Function)
-	 *          => (doResize: boolean, doScroll: boolean, doResizeAndScrollNext: boolean, element: Element, isScrollToElement: boolean) => void} */
+	/**
+	 * Resize and auto-scroll as throttled function: will be invoked only once or twice every THROTTLE_DELAY_MSEC:
+	 * immediately and - if it has been called more than once - after THROTTLE_DELAY_MSEC since the first call.
+	 *
+	 * @type {(doResize: boolean, doScroll?: boolean, doResizeAndScrollNext?: boolean,
+	 *         element?: Element, isScrollToElement?: boolean) => void}
+	 */
 	const _resizeAndScroll= ((callback) => {
 		let isWaiting= false;
-		let redoResize= false;
-		let redoScroll= false;
 		let resizeAndScrollNext= false;
 		let scrollToElement= undefined;
-		let redoScrollToElement= false;
-		const scrollProgressHolder= {element: undefined, completed: true};
+		/** @type {boolean | undefined} */ let redoResize= false;
+		/** @type {boolean | undefined} */ let redoScroll= false;
+		/** @type {boolean | undefined} */ let redoScrollToElement= false;
 
-		/** @type {(doResize: boolean, doScroll: boolean, doResizeAndScrollNext: boolean, element: Element, isScrollToElement: boolean) => void} */
+		/** @type {{ element: Element | undefined, completed: boolean }} */
+		const scrollProgressHolder= {element: undefined, completed: true};
 		return function(doResize, doScroll, doResizeAndScrollNext, element, isScrollToElement) {
 			if (isScrollToElement && element) {
 				scrollToElement= element;
@@ -224,7 +232,10 @@ export function chatbotUi(chatbot, parent, config) {
 			}, UI_THROTTLE_DELAY);
 		};
 
-	})(function(doResize, doScroll, doScrollToElement, scrollToElement, scrollProgressHolder) {
+	})( /** @type {(doResize: boolean | undefined, doScroll: boolean | undefined, doScrollToElement: boolean | undefined,
+		 *          scrollToElement: any,
+		 *          scrollProgressHolder: { element: Element | undefined, completed: boolean }) => void} */
+		function(doResize, doScroll, doScrollToElement, scrollToElement, scrollProgressHolder) {
 
 		// First do resize, since scrolling might depend on it
 		if (doResize) {
@@ -234,7 +245,7 @@ export function chatbotUi(chatbot, parent, config) {
 			_input.style.height= 'auto';
 
 			// Comput and set height
-			const maxHeight= parseInt((_widget.offsetHeight - title.offsetHeight) * MAX_HEIGHT_OF_WIDGET_PERCENTAGE);
+			const maxHeight= (_widget.offsetHeight - title.offsetHeight) * MAX_HEIGHT_OF_WIDGET_PERCENTAGE;
 			const neededHeight= _input.scrollHeight + 1;
 			_input.style.height= `${Math.min(neededHeight, maxHeight)}px`;
 
@@ -253,7 +264,7 @@ export function chatbotUi(chatbot, parent, config) {
 					const availableSpace= _widget.clientHeight - sticky.getBoundingClientRect().height;
 					const gapWithoutBottomMargin= bottomElement.parentNode.getBoundingClientRect().bottom - scrollToElement.getBoundingClientRect().top;
 					const extraBottomMargin= availableSpace - gapWithoutBottomMargin;
-					scroll.style.marginBottom= extraBottomMargin > 0 ? `${extraBottomMargin}px` : 0;
+					scroll.style.marginBottom= extraBottomMargin > 0 ? `${extraBottomMargin}px` : '0';
 					if (doScrollToElement) {
 						scrollToElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
 					}
@@ -305,7 +316,7 @@ export function chatbotUi(chatbot, parent, config) {
 	});
 	addEvent(window, 'resize', () => _resizeAndScroll(true));
 	_input.rows= 1;
-	_input.inputmode= 'text';
+	_input.inputMode= 'text';
 	_input.autocomplete= 'off';
 	_input.placeholder= getConfigString('placeholder', 'Ask anything');
 	_input.setAttribute('autofocus', '');
@@ -344,7 +355,7 @@ export function chatbotUi(chatbot, parent, config) {
 	function update(changes) {
 		changes.forEach(change => {
 			if (change.action == 'reset') {
-				scroll.style.marginBottom= 0;
+				scroll.style.marginBottom= '0';
 				_msgArea.innerHTML= '';
 				_isReadyToSend= true;
 				if (_input && getConfigString('placeholderFollowup')) {
@@ -356,7 +367,7 @@ export function chatbotUi(chatbot, parent, config) {
 				_sourcesBtnByMsgObj= new Map();
 				showSourcesSidebar(false);
 				setClassName(_widget, 'widget splash');
-			} else if (change.action == 'add') {
+			} else if (change.action == 'add' && change.msgObj) {
 				let skip= false;
 				if (_isSplash) {
 					_isSplash= false;
@@ -370,6 +381,7 @@ export function chatbotUi(chatbot, parent, config) {
 					}
 				}
 				if (!skip) {
+					const msgObj= change.msgObj;
 					const role= change.msgObj.role;
 					const message= change.msgObj.content;
 					const msgContainer=
@@ -397,6 +409,7 @@ export function chatbotUi(chatbot, parent, config) {
 					attachFloatingTooltip(copyButton);
 					const copyButtonDefaultInner= copyButton.innerHTML;
 					addEvent(copyButton, 'click', () => {
+						if (!change.msgObj || !change.msgObj.content) return;
 						navigator.clipboard.write([
 							new ClipboardItem(
 								role == 'user'
@@ -455,7 +468,8 @@ export function chatbotUi(chatbot, parent, config) {
 				_resizeAndScroll(false, true, false, streamElement, false);
 			} else if (change.action == 'sent') {
 				if (change.msgObj) {
-					optionsElements.forEach(element => element.reset(change.msgObj.options));
+					const options= change.msgObj.options;
+					optionsElements.forEach(element => element.reset(options));
 				}
 			}
 			if (change.action == 'add' || (change.action == 'updateProperty' && change.property == 'refs')) {
@@ -503,8 +517,8 @@ export function chatbotUi(chatbot, parent, config) {
 		if (!_sourcesSidebar) {
 			if (!enablement) return;
 			_sourcesSidebar= createElement(_widget, 'aside', 'sources');
-			_sourcesSidebar.style.width= 0;
-			_sourcesSidebar.style.padding= 0;
+			_sourcesSidebar.style.width= '0';
+			_sourcesSidebar.style.padding= '0';
 			const mbar= createElement(_sourcesSidebar, 'div', 'mbar');
 			_sourcesSidebarcloseBtn= createBtn(mbar, 'close', SVG_CLOSE, 'Close');
 			addEvent(_sourcesSidebarcloseBtn, 'click', () => {
@@ -552,7 +566,8 @@ export function chatbotUi(chatbot, parent, config) {
 				for (const ref of refsWithoutDuplicates) {
 					if (ref.h != href) continue;
 					done.add(ref.h);
-					const a= createElement(createElement(listElement, 'li'), 'a', 0);
+					/** @type {HTMLAnchorElement} */ // @ts-ignore
+					const a= createElement(createElement(listElement, 'li'), 'a');
 					a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
 					a.target= '_blank';
 					if (ref.b) {
@@ -583,6 +598,7 @@ export function chatbotUi(chatbot, parent, config) {
 				});
 			}
 			for (const ref of uncitedRefs) {
+				/** @type {HTMLAnchorElement} */ // @ts-ignore
 				const a= createElement(createElement(moreList, 'li'), 'a', 0, ref.t);
 				a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
 				a.target= '_blank';
@@ -644,6 +660,8 @@ export function chatbotUi(chatbot, parent, config) {
 
 	/**
 	 * @param {string} prop
+	 * @param {string} [defaultValue]
+	 * @returns {string}
 	 */
 	function getConfigString(prop, defaultValue) {
 		return config !== undefined && typeof config[prop] === 'string' ? config[prop] : (defaultValue ? defaultValue : '');
@@ -651,6 +669,8 @@ export function chatbotUi(chatbot, parent, config) {
 
 	/**
 	 * @param {string} prop
+	 * @param {boolean} defaultValue
+	 * @returns {boolean}
 	 */
 	function getConfigBoolean(prop, defaultValue) {
 		return config !== undefined && typeof config[prop] === 'boolean' ? config[prop] : (defaultValue ? defaultValue : false);
@@ -661,19 +681,20 @@ export function chatbotUi(chatbot, parent, config) {
 	 * @param {string} id
 	 * @param {string} defaultSvg
 	 * @param {string} [defaultHover]
-	 * @returns {Element}
+	 * @returns {HTMLButtonElement}
 	 */
 	function createBtn(parent, id, defaultSvg, defaultHover) {
+		/** @type {HTMLButtonElement} */ // @ts-ignore
 		const btn= createElement(parent, 'button', 'btn ' + id);
 		btn.innerHTML= getConfigString(id + 'Btn', defaultSvg);
 		if (defaultHover) {
 			const hover= getConfigString(id + 'Hover', defaultHover);
-			btn.alt= getConfigString(id + 'Alt', hover);
 			btn.title= getConfigString(id + 'Title', hover);
 		}
 		return btn;
 	}
 
+	/** @type {ChatbotUi & chatbot.Observer} */
 	const ui= {
 		update,
 		enter: function(str, smart) {
@@ -688,8 +709,9 @@ export function chatbotUi(chatbot, parent, config) {
 			_autoScrollType= autoScrollType;
 			return this;
 		},
-		typeEverywhere: function(enbalement) {
-			_isTypeEverywhere= enbalement;
+		/** @export */
+		typeEverywhere: function(isTypeEverywhere) {
+			_isTypeEverywhere= isTypeEverywhere;
 			return this;
 		}
 	};
@@ -702,7 +724,7 @@ async function addOptionsControl(form, beforeChild, optionsPromis, selected, opt
 	var optionsArea;
 	for (const opt of options) {
 		if (optionsArea === undefined) {
-			optionsArea= createElement(undefined, 'div', 'options');
+			optionsArea= createElement(UNDEFINED, 'div', 'options');
 			form.insertBefore(optionsArea, beforeChild);
 			setClassName(form, 'form o');
 		}
@@ -736,5 +758,3 @@ async function addOptionsControl(form, beforeChild, optionsPromis, selected, opt
 		}
 	}
 }
-
-

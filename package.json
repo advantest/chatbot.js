@@ -72,6 +72,7 @@
 		"@rollup/plugin-babel": "^6.1.0",
 		"@rollup/plugin-node-resolve": "^16.0.3",
 		"@types/jest": "^30.0.0",
+		"@types/jest-expect-message": "npm:jest-expect-message@*",
 		"@types/markdown-it": "^14.1.2",
 		"chokidar": "^5.0.0",
 		"clean-css": "^5.3.3",

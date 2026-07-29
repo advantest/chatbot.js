@@ -26,12 +26,14 @@ async function testHistoryImpl(db) {
 	await list(db, 0);
 
 	// add chat
+	// @ts-ignore
 	await db.add([{ role: 'user', content: 'msg1'}], 'chat 1');
 	let descs= await list(db, 1);
 	const desc= descs[0];
 	expect(desc.name).toBe('chat 1');
 
 	// add another chat
+	// @ts-ignore
 	await db.add([{ role: 'user', content: 'msg2'}], 'chat 2');
 	descs= await list(db, 2);
 
