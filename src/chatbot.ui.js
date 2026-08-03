@@ -9,6 +9,7 @@ const MAX_HEIGHT_OF_WIDGET_PERCENTAGE= 0.61;
 const UI_THROTTLE_DELAY= 100; // in milliseconds
 const DONE_DELAY= 2000; // in milliseconds; time of showing that an action like copy to clipboar has been done
 const HISTORY_FOOTER_DEFAULT= 'Your chats are saved locally in your browser\'s IndexedDB.';
+const QUESTION_NAV_THRESHOLD_DEFAULT= 4; // number of user questions before the navigation rail appears
 
 /**
  * @typedef {Object} ChatbotUi
@@ -45,6 +46,13 @@ export function chatbotUi(chatbot, parent, config) {
 	let _sourcesSidebarContent;
 	let _sourcesSidebarMsgObj;
 	let _sourcesSidebarState;
+
+	// Question navigation rail (clickable anchors for user questions)
+	let _qnavRail;
+	let _qnavList;
+	let _qnavItems= [];
+	let _qnavActiveTicking= false;
+
 	// Floating tooltip (added to the body to escape the constraints of overflow: hidden)
 	let _tooltipTarget= null;
 	const _tooltip= document.createElement('div');
@@ -69,6 +77,7 @@ export function chatbotUi(chatbot, parent, config) {
 		addEvent(btn, 'mouseenter', () => showFloatingTooltip(btn));
 		addEvent(btn, 'mouseleave', () => hideFloatingTooltip());
 	}
+
 	const _widget= createElement(parent, 'div', 'widget splash');
 	const newBtnToAdd= !config || config.newBtn !== false;
 	function addNewBtn(newBtnParent) {
@@ -165,6 +174,13 @@ export function chatbotUi(chatbot, parent, config) {
 	}
 	const _msgArea= createElement(scroll, 'div', 'chat');
 	const form= createElement(createElement(sticky, 'div', 'form-area'), 'form', 'form');
+	if (getConfigBoolean('questionNav', true)) {
+		_qnavRail= createElement(_mainP, 'nav', 'qnav');
+		_qnavRail.setAttribute('aria-label', 'Chat questions');
+		_qnavRail.hidden= true;
+		_qnavList= createElement(_qnavRail, 'div', 'qnav-list');
+		addEvent(main, 'scroll', scheduleQuestionNavActiveUpdate);
+	}
 
 	/** @type {Record<string, unknown>} */
 	const selected= {};
@@ -179,6 +195,93 @@ export function chatbotUi(chatbot, parent, config) {
 			if (element) return element;
 		}
 		return undefined;
+	}
+
+	function prefersReducedMotion() {
+		return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	}
+
+	/**
+	 * Adds a clickable anchor for a user question to the navigation rail.
+	 * @param {Object} msgObj
+	 * @param {Element} container - the message container to scroll to
+	 * @param {string} text - the question text shown on hover
+	 */
+	function addQuestionNavItem(msgObj, container, text) {
+		if (!_qnavList) return;
+		const label= typeof text === 'string' ? text.trim().replace(/\s+/g, ' ') : '';
+		const item= createElement(_qnavList, 'button', 'qnav-item');
+		/** @type {HTMLButtonElement} */ // @ts-ignore
+		item.type= 'button';
+		item.setAttribute('aria-label', label);
+		createElement(item, 'span', 'qnav-dash');
+		createElement(item, 'span', 'qnav-label', label);
+		addEvent(item, 'click', () => {
+			setActiveQuestionNavItem(item);
+			if (typeof container.scrollIntoView === 'function') {
+				container.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+			}
+		});
+		_qnavItems.push({ msgObj: msgObj, container: container, item: item });
+	}
+
+	function updateQuestionNavVisibility() {
+		if (!_qnavRail) return;
+		const threshold= getConfigNumber('questionNavThreshold', QUESTION_NAV_THRESHOLD_DEFAULT);
+		const visible= _qnavItems.length >= threshold;
+		_qnavRail.hidden= !visible;
+		if (visible) {
+			_qnavRail.classList.add(CLASS_PREFIX + 'qnav-show');
+		} else {
+			_qnavRail.classList.remove(CLASS_PREFIX + 'qnav-show');
+		}
+	}
+
+	function clearQuestionNav() {
+		if (!_qnavRail) return;
+		_qnavItems= [];
+		_qnavList.innerHTML= '';
+		_qnavRail.hidden= true;
+		_qnavRail.classList.remove(CLASS_PREFIX + 'qnav-show');
+	}
+
+	function setActiveQuestionNavItem(activeItem) {
+		const activeClass= CLASS_PREFIX + 'active';
+		for (const entry of _qnavItems) {
+			if (entry.item === activeItem) {
+				entry.item.classList.add(activeClass);
+				entry.item.setAttribute('aria-current', 'true');
+			} else {
+				entry.item.classList.remove(activeClass);
+				entry.item.removeAttribute('aria-current');
+			}
+		}
+	}
+
+	// Highlights the rail anchor of the question currently at/above the top of the viewport.
+	function updateQuestionNavActive() {
+		if (!_qnavRail || _qnavRail.hidden || !_qnavItems.length) return;
+		const boundary= main.getBoundingClientRect().top + 8;
+		let active= _qnavItems[0].item;
+		for (const entry of _qnavItems) {
+			if (entry.container.getBoundingClientRect().top - boundary <= 1) {
+				active= entry.item;
+			} else {
+				break;
+			}
+		}
+		setActiveQuestionNavItem(active);
+	}
+
+	function scheduleQuestionNavActiveUpdate() {
+		if (_qnavActiveTicking) return;
+		_qnavActiveTicking= true;
+		const run= () => { _qnavActiveTicking= false; updateQuestionNavActive(); };
+		if (typeof requestAnimationFrame === 'function') {
+			requestAnimationFrame(run);
+		} else {
+			setTimeout(run, 16);
+		}
 	}
 
 	/**
@@ -314,7 +417,7 @@ export function chatbotUi(chatbot, parent, config) {
 		_updateSendButtonEnablement();
 		_resizeAndScroll(true);
 	});
-	addEvent(window, 'resize', () => _resizeAndScroll(true));
+	addEvent(window, 'resize', () => { _resizeAndScroll(true); scheduleQuestionNavActiveUpdate(); });
 	_input.rows= 1;
 	_input.inputMode= 'text';
 	_input.autocomplete= 'off';
@@ -365,6 +468,7 @@ export function chatbotUi(chatbot, parent, config) {
 				_refsMapByMsgObj= new Map();
 				_toolbarByMsgObj= new Map();
 				_sourcesBtnByMsgObj= new Map();
+				clearQuestionNav();
 				showSourcesSidebar(false);
 				setClassName(_widget, 'widget splash');
 			} else if (change.action == 'add' && change.msgObj) {
@@ -411,12 +515,12 @@ export function chatbotUi(chatbot, parent, config) {
 					addEvent(copyButton, 'click', () => {
 						if (!change.msgObj || !change.msgObj.content) return;
 						navigator.clipboard.write([
-							new ClipboardItem(
-								role == 'user'
-								? { 'text/plain': new Blob([change.msgObj.content], { type: 'text/plain' }) }
-								: { 'text/plain': new Blob([change.msgObj.content], { type: 'text/plain' }),
-									'text/html': new Blob([mdToHtml(change.msgObj.content)], { type: 'text/html' }) }
-						)
+								new ClipboardItem(
+									role == 'user'
+									? { 'text/plain': new Blob([change.msgObj.content], { type: 'text/plain' }) }
+									: { 'text/plain': new Blob([change.msgObj.content], { type: 'text/plain' }),
+										'text/html': new Blob([mdToHtml(change.msgObj.content)], { type: 'text/html' }) }
+							)
 						]).then(() => {
 							copyButton.innerHTML= getConfigString('doneBtn', SVG_DONE);
 							copyButton.setAttribute('data-tooltip', 'Copied!');
@@ -434,6 +538,11 @@ export function chatbotUi(chatbot, parent, config) {
 					});
 					if (config && typeof config.customizeMsgFn === 'function') {
 						config.customizeMsgFn(toolbar, msgElement, role == 'user', change.msgObj);
+					}
+					if (role == 'user') {
+						addQuestionNavItem(change.msgObj, msgContainer, message ? message : '');
+						updateQuestionNavVisibility();
+						scheduleQuestionNavActiveUpdate();
 					}
 					_resizeAndScroll(false, true, false, msgElement, role == 'user');
 				}
@@ -674,6 +783,13 @@ export function chatbotUi(chatbot, parent, config) {
 	 */
 	function getConfigBoolean(prop, defaultValue) {
 		return config !== undefined && typeof config[prop] === 'boolean' ? config[prop] : (defaultValue ? defaultValue : false);
+	}
+
+	/**
+	 * @param {string} prop
+	 */
+	function getConfigNumber(prop, defaultValue) {
+		return config !== undefined && typeof config[prop] === 'number' && isFinite(config[prop]) ? config[prop] : defaultValue;
 	}
 
 	/**

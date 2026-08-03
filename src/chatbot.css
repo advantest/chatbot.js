@@ -651,6 +651,140 @@
 	background: #d7d7d7;
 }
 
+/* Question navigation rail */
+.-c-qnav {
+	position: absolute;
+	top: 50%;
+	right: 1.25rem;
+	transform: translateY(-50%);
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	max-height: 60%;
+	overflow-y: auto;
+	padding: .5rem;
+	opacity: 0;
+	pointer-events: none;
+	scrollbar-width: thin;
+	transition: opacity .25s cubic-bezier(.4, 0, .2, 1);
+}
+
+.-c-qnav.-c-qnav-show {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.-c-qnav:hover {
+	min-width: 13rem;
+	max-width: 18rem;
+	background: #fff;
+	border-radius: 14px;
+	box-shadow: rgba(0, 0, 0, .12) 0 6px 24px, rgba(0, 0, 0, .06) 0 0 0 1px;
+}
+
+.-c-qnav-list {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 8px;
+	width: 100%;
+}
+
+.-c-qnav:hover .-c-qnav-list {
+	align-items: stretch;
+	gap: 1px;
+}
+
+.-c-qnav-item {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	max-width: -moz-fit-content;
+	max-width: fit-content;
+	margin-left: auto;
+	padding: 0;
+	border: none;
+	border-radius: 8px;
+	background: none;
+	cursor: pointer;
+	transition: none;
+	/* collapse is instant; expand transitions are defined in the :hover rules */
+}
+
+.-c-qnav:hover .-c-qnav-item {
+	justify-content: flex-start;
+	max-width: none;
+	width: 100%;
+	padding: .5rem .625rem;
+	transition: background .15s cubic-bezier(.4, 0, .2, 1);
+}
+
+.-c-qnav:hover .-c-qnav-item:hover,
+.-c-qnav:hover .-c-qnav-item.-c-active {
+	background: #ececec;
+}
+
+.-c-qnav-item:focus-visible {
+	outline: 2px solid #0d0d0d;
+	outline-offset: 2px;
+}
+
+.-c-qnav-dash {
+	flex: 0 0 auto;
+	width: 1.25rem;
+	height: 2px;
+	border-radius: 2px;
+	background: #c9c9c9;
+	transition: width .2s cubic-bezier(.4, 0, .2, 1), background .2s cubic-bezier(.4, 0, .2, 1);
+}
+
+.-c-qnav-item.-c-active .-c-qnav-dash {
+	background: #0d0d0d;
+}
+
+.-c-qnav:hover .-c-qnav-dash {
+	display: none;
+}
+
+.-c-qnav-label {
+	max-width: 0;
+	min-width: 0;
+	opacity: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	text-align: left;
+	font-size: .875rem;
+	line-height: 0; /* collapsed items are exactly the dash height so dashes land on whole pixels (no blur) */
+	color: #0d0d0d;
+	transition: none;
+	/* collapse is instant so labels never linger over chat messages */
+}
+
+.-c-qnav:hover .-c-qnav-label {
+	max-width: 100%;
+	opacity: 1;
+	line-height: 1.4;
+	transition: max-width .2s cubic-bezier(.4, 0, .2, 1), opacity .2s cubic-bezier(.4, 0, .2, 1);
+}
+
+@container root (max-width: calc(48rem + 64px)) {
+	.-c-qnav {
+		display: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+	.-c-qnav,
+	.-c-qnav-item,
+	.-c-qnav-dash,
+	.-c-qnav-label {
+		transition: none;
+	}
+}
+
 /* Dropdown */
 .lm-dropdown {
 	width: max-content;

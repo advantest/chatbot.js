@@ -68,6 +68,81 @@ describe('chatbot.ui.test.js', () => {
 });
 
 /**
+ * @jest-environment jsdom
+ */
+describe('question navigation rail', () => {
+
+	async function ask(bot, n) {
+		for (let i= 1; i <= n; i++) {
+			await bot.send('question ' + i);
+		}
+	}
+
+	function newUi(config) {
+		document.body.innerHTML= '';
+		const bot= chatbot.chatbot({ connector: toUpperCaseConnector() });
+		ui.chatbotUi(bot, document.querySelector('body'), config || {});
+		return bot;
+	}
+
+	test('rail exists but is hidden below the threshold', async () => {
+		const bot= newUi();
+		await ask(bot, 3);
+		const rail= document.querySelector('.-c-qnav');
+		expect(rail, 'rail element should exist').not.toBeNull();
+		expect(rail.hidden, 'rail hidden with 3 questions (default threshold 4)').toBe(true);
+	});
+
+	test('rail becomes visible at the threshold with one anchor per user question', async () => {
+		const bot= newUi();
+		await ask(bot, 4);
+		const rail= document.querySelector('.-c-qnav');
+		expect(rail.hidden, 'rail visible at 4 questions').toBe(false);
+		expect(document.querySelectorAll('.-c-qnav-item').length,
+			'one anchor per user question, assistant replies excluded').toBe(4);
+	});
+
+	test('anchor label matches the user question text', async () => {
+		const bot= newUi();
+		await ask(bot, 4);
+		const labels= Array.from(document.querySelectorAll('.-c-qnav-label')).map(el => el.textContent);
+		expect(labels, 'labels in order').toEqual(['question 1', 'question 2', 'question 3', 'question 4']);
+	});
+
+	test('questionNavThreshold config lowers the trigger', async () => {
+		const bot= newUi({ questionNavThreshold: 2 });
+		await ask(bot, 2);
+		expect(document.querySelector('.-c-qnav').hidden, 'visible after 2 with threshold 2').toBe(false);
+	});
+
+	test('questionNav:false disables the feature entirely', async () => {
+		const bot= newUi({ questionNav: false });
+		await ask(bot, 5);
+		expect(document.querySelector('.-c-qnav'), 'no rail when disabled').toBeNull();
+	});
+
+	test('clicking an anchor marks exactly one item active', async () => {
+		const bot= newUi();
+		await ask(bot, 4);
+		const items= document.querySelectorAll('.-c-qnav-item');
+		items.item(1).click();
+		const active= document.querySelectorAll('.-c-qnav-item.-c-active');
+		expect(active.length, 'exactly one active anchor').toBe(1);
+		expect(active.item(0), 'clicked anchor is active').toBe(items.item(1));
+	});
+
+	test('reset clears the rail', async () => {
+		const bot= newUi();
+		await ask(bot, 4);
+		bot.reset();
+		const rail= document.querySelector('.-c-qnav');
+		expect(rail.hidden, 'rail hidden after reset').toBe(true);
+		expect(document.querySelectorAll('.-c-qnav-item').length, 'no anchors after reset').toBe(0);
+	});
+
+});
+
+/**
  * @returns {chatbot.Connector}
  */
 function toUpperCaseConnector() {
