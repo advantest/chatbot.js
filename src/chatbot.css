@@ -664,15 +664,13 @@
 	max-height: 60%;
 	overflow-y: auto;
 	padding: .5rem;
-	opacity: 0;
-	pointer-events: none;
+	pointer-events: auto;
 	scrollbar-width: thin;
 	transition: opacity .25s cubic-bezier(.4, 0, .2, 1);
 }
 
-.-c-qnav.-c-qnav-show {
-	opacity: 1;
-	pointer-events: auto;
+.-c-qnav[hidden] {
+	display: none;
 }
 
 .-c-qnav:hover, .-c-qnav:focus-within {

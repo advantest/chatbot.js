@@ -10,6 +10,7 @@ const UI_THROTTLE_DELAY= 100; // in milliseconds
 const DONE_DELAY= 2000; // in milliseconds; time of showing that an action like copy to clipboar has been done
 const HISTORY_FOOTER_DEFAULT= 'Your chats are saved locally in your browser\'s IndexedDB.';
 const QUESTION_NAV_THRESHOLD_DEFAULT= 4; // number of user questions before the navigation rail appears
+const ANIMATION_DELAY_DEFAULT= 16; // in milliseconds; 60hz ~ 16.67ms
 
 /**
  * @typedef {Object} ChatbotUi
@@ -203,15 +204,15 @@ export function chatbotUi(chatbot, parent, config) {
 
 	/**
 	 * Adds a clickable anchor for a user question to the navigation rail.
-	 * @param {Object} msgObj
+	 * @param {chatbot.MessageObject} msgObj
 	 * @param {Element} container - the message container to scroll to
 	 * @param {string} text - the question text shown on hover
 	 */
 	function addQuestionNavItem(msgObj, container, text) {
 		if (!_qnavList) return;
 		const label= typeof text === 'string' ? text.trim().replace(/\s+/g, ' ') : '';
-		const item= createElement(_qnavList, 'button', 'qnav-item');
 		/** @type {HTMLButtonElement} */ // @ts-ignore
+		const item= createElement(_qnavList, 'button', 'qnav-item');
 		item.type= 'button';
 		item.setAttribute('aria-label', label);
 		createElement(item, 'span', 'qnav-dash');
@@ -230,11 +231,6 @@ export function chatbotUi(chatbot, parent, config) {
 		const threshold= getConfigNumber('questionNavThreshold', QUESTION_NAV_THRESHOLD_DEFAULT);
 		const visible= _qnavItems.length >= threshold;
 		_qnavRail.hidden= !visible;
-		if (visible) {
-			_qnavRail.classList.add(CLASS_PREFIX + 'qnav-show');
-		} else {
-			_qnavRail.classList.remove(CLASS_PREFIX + 'qnav-show');
-		}
 	}
 
 	function clearQuestionNav() {
@@ -242,9 +238,11 @@ export function chatbotUi(chatbot, parent, config) {
 		_qnavItems= [];
 		_qnavList.innerHTML= '';
 		_qnavRail.hidden= true;
-		_qnavRail.classList.remove(CLASS_PREFIX + 'qnav-show');
 	}
 
+	/**
+	 * @param {HTMLElement} activeItem
+	 */
 	function setActiveQuestionNavItem(activeItem) {
 		const activeClass= CLASS_PREFIX + 'active';
 		for (const entry of _qnavItems) {
@@ -280,7 +278,7 @@ export function chatbotUi(chatbot, parent, config) {
 		if (typeof requestAnimationFrame === 'function') {
 			requestAnimationFrame(run);
 		} else {
-			setTimeout(run, 16);
+			setTimeout(run, ANIMATION_DELAY_DEFAULT);
 		}
 	}
 
