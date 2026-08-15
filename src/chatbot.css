@@ -675,7 +675,7 @@
 	pointer-events: auto;
 }
 
-.-c-qnav:hover {
+.-c-qnav:hover, .-c-qnav:focus-within {
 	min-width: 13rem;
 	max-width: 18rem;
 	background: #fff;
@@ -691,7 +691,7 @@
 	width: 100%;
 }
 
-.-c-qnav:hover .-c-qnav-list {
+.-c-qnav:hover .-c-qnav-list, .-c-qnav:focus-within .-c-qnav-list {
 	align-items: stretch;
 	gap: 1px;
 }
@@ -712,7 +712,7 @@
 	/* collapse is instant; expand transitions are defined in the :hover rules */
 }
 
-.-c-qnav:hover .-c-qnav-item {
+.-c-qnav:hover .-c-qnav-item, .-c-qnav:focus-within .-c-qnav-item {
 	justify-content: flex-start;
 	max-width: none;
 	width: 100%;
@@ -721,13 +721,14 @@
 }
 
 .-c-qnav:hover .-c-qnav-item:hover,
-.-c-qnav:hover .-c-qnav-item.-c-active {
+.-c-qnav:hover .-c-qnav-item.-c-active,
+.-c-qnav:focus-within .-c-qnav-item:focus,
+.-c-qnav:focus-within .-c-qnav-item.-c-active {
 	background: #ececec;
 }
 
 .-c-qnav-item:focus-visible {
 	outline: 2px solid #0d0d0d;
-	outline-offset: 2px;
 }
 
 .-c-qnav-dash {
@@ -743,7 +744,7 @@
 	background: #0d0d0d;
 }
 
-.-c-qnav:hover .-c-qnav-dash {
+.-c-qnav:hover .-c-qnav-dash, .-c-qnav:focus-within .-c-qnav-dash {
 	display: none;
 }
 
@@ -762,7 +763,7 @@
 	/* collapse is instant so labels never linger over chat messages */
 }
 
-.-c-qnav:hover .-c-qnav-label {
+.-c-qnav:hover .-c-qnav-label, .-c-qnav:focus-within .-c-qnav-label {
 	max-width: 100%;
 	opacity: 1;
 	line-height: 1.4;
