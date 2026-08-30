@@ -1,6 +1,6 @@
 # chatbot.js
 
-A **customizable**, framework-agnostic **chatbot widget** implemented in JavaScript that can be easily integrated into an existing HTML site or used as a standalone site (see [`src/sample.html`](src/sample.html)).
+A [**customizable**](customize.md), framework-agnostic **chatbot widget** implemented in JavaScript that can be easily integrated into an existing HTML site or used as a standalone site (see [`src/sample.html`](src/sample.html)).
 
 
 ## Getting Started
