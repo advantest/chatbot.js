@@ -95,6 +95,9 @@ Passed as the third argument to `chatbotUi(chatbot, containerElement, uiConfig)`
 | `placeholderFollowup` | `string` | none | Placeholder text of the input field after the first message has been sent. Falls back to `placeholder` when not set. |
 | `footerHtml` | `string` | none | HTML shown below the input field, for example a disclaimer. |
 | `historyFooter` | `string` | `"Your chats are saved locally in your browser's IndexedDB."` | Note shown at the bottom of the history sidebar. Set to an empty string to hide it. |
+| `errorMsg` | `string` | `'Something went wrong.'` | Plain text message shown when sending a message fails. |
+| `errorMsgHtml` | `string` | none | HTML message shown when sending a message fails; takes precedence over `errorMsg` when set. |
+| `errorRetryBtnText` | `string` | `'Retry'` | Label of the button that resends the failed message. |
 
 
 ### Behavior
@@ -118,12 +121,12 @@ Built-in buttons can be individually restyled. For a button with ID `<id>`, the 
 | Property pattern | Type | Description |
 |---|---|---|
 | `<id>Btn` | `string` (SVG/HTML) | Overrides the button icon. |
+| `<id>BtnText` | `string` | Overrides the button text/label. |
 | `<id>Hover` | `string` | Overrides the tooltip text shown on hover. |
-| `<id>Title` | `string` | Overrides the native `title` attribute; falls back to `<id>Hover` when not set. |
 
 Available IDs: `new` (New chat), `sidebar` (open history sidebar), `close` (close the top bar or the sources
-sidebar), `send` (send message; icon only, no hover text), `copy` (copy a message; `doneBtn` overrides the
-icon shown briefly after a successful copy).
+sidebar), `send` (send message), `copy` (copy a message; `doneBtn` overrides the icon shown briefly after a
+successful copy), `errorRetry` (retry after a failed send).
 
 Example:
 

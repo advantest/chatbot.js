@@ -370,6 +370,9 @@
 	border: none;
 
 }
+.-c-btn span {
+	padding-left: .25rem;
+}
 .-c-tbar .-c-btn, .-c-mbar .-c-btn, .-c-history .-c-btn {
 	width: 2rem;
 	height: 2rem;
@@ -399,6 +402,32 @@
 }
 .-c-msg-p.-c-role-assistant .-c-tbar .-c-btn, .-c-msg-p:hover .-c-tbar .-c-btn, .-c-msg-p:focus-within .-c-tbar .-c-btn, .-c-role-assistant:last-child .-c-tbar .-c-btn {
 	opacity: 1;
+}
+
+/* Error panel */
+.-c-error {
+	display: flex;
+	color: #f93a37;
+	background: oklab(0.643789 0.201819 0.10297 / 0.05);
+	border: 1px solid oklab(0.643789 0.201819 0.10297 / 0.15);
+	border-radius: 1rem;
+	align-items: center;
+	padding: 1rem;
+}
+.-c-error p {
+	margin: 0;
+	padding: 4px 6px 6px;
+	flex: 1;
+}
+.-c-errorRetry {
+	width: fit-content;
+	padding: 0 1rem;
+	background: #fff;
+	color: #0d0d0d;
+	border: 1px solid #00000026;
+}
+.-c-errorRetry:hover {
+	background: #f9f9f9;
 }
 
 /* Options */

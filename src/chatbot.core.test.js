@@ -45,6 +45,29 @@ describe('chatbot.core.test.js', () => {
 		expect(log[4][0].msgObj.content).toBe('MSG2');
 	});
 
+	test('connector failing on send', async () => {
+		const chat= chatbot.chatbot({
+			connector: {
+				send() {
+					return new Promise(() => { throw new Error('expected failed connector') });
+				}
+			}
+		});
+		const log= [];
+		const observer= {
+			/** @type {(changes: Array.<chatbot.Change>) => void} */
+			update: function(changes) {
+				log.push(changes);
+			}
+		}
+		chat.observe(observer);
+		await chat.send('msg');
+		expect(log.length).toBeGreaterThanOrEqual(1);
+		const loggedError= log[log.length - 1][0];
+		expect(loggedError.action).toBe('sendError');
+		expect(loggedError.value).toBeInstanceOf(Error);
+	});
+
 	/**
 	 * @returns {chatbot.Connector}
 	 */

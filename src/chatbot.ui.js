@@ -2,12 +2,14 @@
 import * as chatbot from './chatbot.core.js';
 import { createElement, addEvent, preventDefault, setClassName, UNDEFINED, CLASS_PREFIX } from './chatbot.ui.utility.js';
 import { resolve, mdToHtml, renderMd } from './chatbot.ui.md.js';
-import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD } from './chatbot.ui.icons.js';
+import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD, SVG_TRY_AGAIN } from './chatbot.ui.icons.js';
 import { Dropdown } from './lemonadejs.dropdown.js';
 
 const MAX_HEIGHT_OF_WIDGET_PERCENTAGE= 0.61;
 const UI_THROTTLE_DELAY= 100; // in milliseconds
 const DONE_DELAY= 2000; // in milliseconds; time of showing that an action like copy to clipboar has been done
+const ERROR_MESSAGE_DEFAULT= 'Something went wrong.';
+const ERROR_RETRY_BUTTON_TEXT_DEFAULT= 'Retry';
 const HISTORY_FOOTER_DEFAULT= 'Your chats are saved locally in your browser\'s IndexedDB.';
 const QUESTION_NAV_THRESHOLD_DEFAULT= 4; // number of user questions before the navigation rail appears
 const ANIMATION_DELAY_DEFAULT= 16; // in milliseconds; 60hz ~ 16.67ms
@@ -190,6 +192,7 @@ export function chatbotUi(chatbot, parent, config) {
 	const _input= createElement(form, 'textarea', 'input');
 
 	const _map= new Map();
+	const _errorObj= {};
 	function getElementOfLastMessage() {
 		for (let i= chatbot.messages.length - 1; i >= 0; i--) {
 			const element= _map.get(chatbot.messages[i]);
@@ -579,6 +582,35 @@ export function chatbotUi(chatbot, parent, config) {
 					optionsElements.forEach(element => element.reset(options));
 				}
 			}
+			if (change.action == 'sendError') {
+				_map.get(change.msgObj)?.parentNode.remove();
+				_map.delete(change.msgObj);
+
+				// Show error panel
+				const errorPanel= createElement(_msgArea, 'div', 'error');
+
+				// Error message
+				const errorLabelText= getConfigString('errorMsg', ERROR_MESSAGE_DEFAULT);
+				const errorLabel= createElement(errorPanel, 'p', UNDEFINED, errorLabelText);
+				const errorLabelHtml= getConfigString('errorMsgHtml');
+				if (errorLabelHtml) {
+					errorLabel.innerHTML= errorLabelHtml;
+				}
+
+				// Retry button
+				const retryBtn=
+					createBtn(errorPanel, 'errorRetry', SVG_TRY_AGAIN, UNDEFINED, ERROR_RETRY_BUTTON_TEXT_DEFAULT);
+				addEvent(retryBtn, 'click', () => {
+					errorPanel.remove();
+					if (chatbot.messages[chatbot.messages.length - 1]?.role != 'user') {
+						chatbot.messages.pop();
+					}
+					chatbot.reset(chatbot.messages, true, chatbot.desc);
+				});
+
+				_map.set(_errorObj, retryBtn);
+				_resizeAndScroll(false, true, false, retryBtn);
+			}
 			if (change.action == 'add' || (change.action == 'updateProperty' && change.property == 'refs')) {
 				sourcesButton(change);
 			}
@@ -767,7 +799,7 @@ export function chatbotUi(chatbot, parent, config) {
 
 	/**
 	 * @param {string} prop
-	 * @param {string} [defaultValue]
+	 * @param {string|0} [defaultValue]
 	 * @returns {string}
 	 */
 	function getConfigString(prop, defaultValue) {
@@ -794,17 +826,19 @@ export function chatbotUi(chatbot, parent, config) {
 	 * @param {Element} parent
 	 * @param {string} id
 	 * @param {string} defaultSvg
-	 * @param {string} [defaultHover]
+	 * @param {string|0} [defaultTitle]
+	 * @param {string} [defaultText]
 	 * @returns {HTMLButtonElement}
 	 */
-	function createBtn(parent, id, defaultSvg, defaultHover) {
+	function createBtn(parent, id, defaultSvg, defaultTitle, defaultText) {
 		/** @type {HTMLButtonElement} */ // @ts-ignore
 		const btn= createElement(parent, 'button', 'btn ' + id);
 		btn.innerHTML= getConfigString(id + 'Btn', defaultSvg);
-		if (defaultHover) {
-			const hover= getConfigString(id + 'Hover', defaultHover);
-			btn.title= getConfigString(id + 'Title', hover);
+		const text= getConfigString(id + 'BtnText', defaultText);
+		if (text && text != '') {
+			createElement(btn, 'span', UNDEFINED, text);
 		}
+		btn.title= getConfigString(id + 'Hover', defaultTitle);
 		return btn;
 	}
 

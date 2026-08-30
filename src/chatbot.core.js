@@ -17,9 +17,9 @@ const STREAM= true;
  * @property {(messages?: Array.<MessageObject>, send?: boolean, desc?: ChatDescriptor) => void} reset
  * @property {() => Promise<Array.<Record<string, unknown>>>} getOptions
  * @property {(url: string,
- *             callback?: (data: Record<string, unknown> | undefined, done: boolean) => void,
- *             postData?: string | undefined,
- *             asStream?: boolean | undefined)
+ *             callback?: (data: unknown | undefined, done: boolean) => void,
+ *             postData?: string,
+ *             asStream?: boolean)
  *            => Promise<unknown>} sendHttpRequest - Helper function that can be used to create a custom {@link Connector}
  */
 
@@ -63,7 +63,7 @@ const STREAM= true;
 
 /**
  * @typedef {Record<string, unknown> &
- *           {action: 'add' | 'readyToSend' | 'update' | 'sent' | 'received' | 'reset' | string,
+ *           {action: 'add' | 'readyToSend' | 'update' | 'sent' | 'received' | 'reset' | 'sendError' | string,
  *            msgObj: MessageObject | undefined,
  *            property?: 'content' | 'role' | 'contentWithRefs' | string | undefined,
  *            value?: any | undefined,
@@ -102,17 +102,23 @@ export function chatbot(urlOrConfig) {
 			msgObj= _apply(chatbot, undefined, undefined, true);
 		}
 
-		// Deligate to configured connector if any
-		if (chatbot.config.connector && typeof chatbot.config.connector.send === 'function')
-			return chatbot.config.connector.send((delta, done, refs, refsDelta, refsDone) =>
-					_apply(chatbot, delta, msgObj, true, done, refs, refsDelta, refsDone),
-				msg, chatbot, options);
+		/** @type {(err: Error) => Promise} */
+		function onErrorFn(err) {
+			asyncObserversUpdate( { action: 'sendError', msgObj: msgObj, value: err } );
+			return Promise.resolve();
+		}
 
 		// ...
 		/** @type {(text: string | undefined, done: boolean) => void} */
 		function _receive(text, done) {
 			_apply(chatbot, text, msgObj, true, done);
 		}
+
+		// Deligate to configured connector if any
+		if (chatbot.config.connector && typeof chatbot.config.connector.send === 'function')
+			return chatbot.config.connector.send((delta, done, refs, refsDelta, refsDone) =>
+					_apply(chatbot, delta, msgObj, true, done, refs, refsDelta, refsDone),
+				msg, chatbot, options).catch(onErrorFn);
 
 		/** @type {(data: any, done: boolean) => void} */
 		function callback(data, done) {
@@ -140,7 +146,8 @@ export function chatbot(urlOrConfig) {
 		const baseRequest= urlOrConfig !== null && typeof urlOrConfig === 'object' && urlOrConfig.baseRequestData
 			? urlOrConfig.baseRequestData : {};
 		const requestStr= _toRequestStr(chatbot, baseRequest, requestUrl, STREAM);
-		return chatbot.sendHttpRequest(requestUrl, callback, requestStr, STREAM);
+		return chatbot.sendHttpRequest(requestUrl, callback, requestStr, STREAM)
+			.catch(onErrorFn);
 	}
 
 	/** @type {Array.<Observer>} */
