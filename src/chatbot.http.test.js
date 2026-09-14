@@ -1,4 +1,3 @@
-// @ts-check
 import { TextDecoder as NodeTextDecoder, TextEncoder as NodeTextEncoder } from 'node:util';
 import { sendHttpRequest } from './chatbot.http.js';
 

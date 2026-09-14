@@ -1,4 +1,3 @@
-// @ts-check
 import markdownit from 'markdown-it';
 import { katex } from '@mdit/plugin-katex';
 import { createElement, CLASS_PREFIX, UNDEFINED } from './chatbot.ui.utility.js';

@@ -1,4 +1,3 @@
-// @ts-check
 import { resolve, mdToHtml, renderMd } from './chatbot.ui.md.js';
 
 describe('chatbot.ui.md.test.js', () => {

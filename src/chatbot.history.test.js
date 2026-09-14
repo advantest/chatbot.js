@@ -1,4 +1,3 @@
-// @ts-check
 import 'core-js/stable/structured-clone';
 import 'fake-indexeddb/auto';
 import { createInmemoryHistory } from './chatbot.history.in_memory.js';

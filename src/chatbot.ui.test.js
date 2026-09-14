@@ -1,4 +1,3 @@
-// @ts-check
 import * as chatbot from './chatbot.core.js';
 import * as ui from './chatbot.ui.js';
 

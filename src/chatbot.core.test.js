@@ -1,4 +1,3 @@
-// @ts-check
 import * as chatbot from './chatbot.core.js';
 
 describe('chatbot.core.test.js', () => {

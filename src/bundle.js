@@ -1,4 +1,3 @@
-// @ts-check
 import { chatbot } from './chatbot.core.js';
 import { chatbotUi } from './chatbot.ui.js';
 import { Dropdown } from './lemonadejs.dropdown.js';

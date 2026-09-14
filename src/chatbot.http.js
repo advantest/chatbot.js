@@ -1,4 +1,3 @@
-// @ts-check
 
 /** Matches a single line break: CRLF, LF or CR */
 const LINE_BREAK= /\r\n|\n|\r/;

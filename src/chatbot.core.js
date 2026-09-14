@@ -1,4 +1,3 @@
-// @ts-check
 import { sendHttpRequest } from './chatbot.http.js';
 import { createInmemoryHistory } from './chatbot.history.in_memory.js';
 import { createIndexeddbHistory } from './chatbot.history.indexeddb.js';

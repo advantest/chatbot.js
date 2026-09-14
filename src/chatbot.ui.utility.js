@@ -1,4 +1,3 @@
-// @ts-check
 export const CLASS_PREFIX= '-c-';
 
 /** Constant to get more compact code while maintaining readability, since `undefined` will be compacted to `void 0`,

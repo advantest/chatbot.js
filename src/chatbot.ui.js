@@ -1,4 +1,3 @@
-// @ts-check
 import * as chatbot from './chatbot.core.js';
 import { createElement, addEvent, preventDefault, setClassName, UNDEFINED, CLASS_PREFIX } from './chatbot.ui.utility.js';
 import { resolve, mdToHtml, renderMd } from './chatbot.ui.md.js';

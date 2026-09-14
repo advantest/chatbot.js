@@ -1,0 +1,14 @@
+{
+	"compilerOptions": {
+		"checkJs": true,
+		"noImplicitAny": false,
+		"types": [
+			"node",
+			"jest",
+			"jest-expect-message"
+		]
+	},
+	"include": [
+		"src/**/*"
+	]
+}

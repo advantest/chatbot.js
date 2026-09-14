@@ -1,4 +1,3 @@
-// @ts-check
 /**
  * @typedef {import('./chatbot.core.js').History} History
  * @typedef {import('./chatbot.core.js').ChatDescriptor} ChatDescriptor
