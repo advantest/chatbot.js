@@ -1,6 +1,6 @@
 {
 	"name": "chatbot.js",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"keywords": [],
 	"author": "",
 	"license": "MIT",
@@ -18,6 +18,7 @@
 		"build": "npm run build:clean && npm run build:init && cleancss -o dist/chatbot.min.css src/chatbot.css && npm run build:rollup && npm run build:babel && npm run build:compatminify && npm run build:minify"
 	},
 	"jest": {
+		"roots": ["<rootDir>/src"],
 		"transform": {},
 		"testEnvironment": "jsdom",
 		"setupFilesAfterEnv": [
@@ -61,36 +62,36 @@
 		]
 	},
 	"dependencies": {
-		"@mdit/plugin-katex": "^0.24.2",
-		"markdown-it": "^14.1.1"
+		"@mdit/plugin-katex": "^1.1.1",
+		"markdown-it": "^15.0.2"
 	},
 	"devDependencies": {
-		"@babel/cli": "^7.28.6",
-		"@babel/core": "^7.29.0",
-		"@babel/plugin-transform-runtime": "^7.29.0",
-		"@babel/preset-env": "^7.29.0",
-		"@rollup/plugin-babel": "^6.1.0",
+		"@babel/cli": "^7.29.7",
+		"@babel/core": "^7.29.7",
+		"@babel/plugin-transform-runtime": "^7.29.7",
+		"@babel/preset-env": "^7.29.7",
+		"@rollup/plugin-babel": "^7.1.0",
 		"@rollup/plugin-node-resolve": "^16.0.3",
 		"@types/jest": "^30.0.0",
 		"@types/jest-expect-message": "npm:jest-expect-message@*",
-		"@types/markdown-it": "^14.1.2",
+		"@types/markdown-it": "^14.2.0",
 		"chokidar": "^5.0.0",
 		"clean-css": "^5.3.3",
 		"clean-css-cli": "^5.6.3",
 		"copyfiles": "^2.4.1",
-		"core-js": "^3.49.0",
+		"core-js": "^3.50.0",
 		"fake-indexeddb": "^6.2.5",
-		"google-closure-compiler": "^20260218.0.0",
-		"jest": "^30.2.0",
-		"jest-environment-jsdom": "^30.2.0",
+		"google-closure-compiler": "^20260909.0.0",
+		"jest": "^30.5.1",
+		"jest-environment-jsdom": "^30.5.1",
 		"jest-expect-message": "^1.1.3",
-		"jest-junit": "^16.0.0",
-		"jsdom": "^28.1.0",
-		"picomatch": "^4.0.3",
-		"renamer": "^5.0.2",
+		"jest-junit": "^17.0.0",
+		"jsdom": "^29.1.1",
+		"picomatch": "^4.0.7",
+		"renamer": "^5.0.3",
 		"rimraf": "^6.1.3",
-		"rollup": "^4.58.0",
-		"terser": "^5.46.0",
+		"rollup": "^4.63.1",
+		"terser": "^5.51.2",
 		"update": "^0.7.4"
 	}
 }
