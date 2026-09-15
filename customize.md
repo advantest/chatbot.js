@@ -66,15 +66,16 @@ connector: {
 
 ### Options
 
-Each entry of the `options` array describes one dropdown shown above the input field:
+Each entry in the `options` array defines a dropdown shown alongside the input field:
 
 ```js
 {
-	id: 'model',          // key used in the request/options object passed to send hooks and connectors
-	scope: 'chat',        // optional: 'chat' disables the dropdown once the chat has started
+	id: 'model',   // key used in the request/options object passed to send hooks and connectors
+	scope: 'chat', // optional: 'chat' locks the dropdown once the chat has started
 	values: [
-		{ value: 'gpt', label: 'GPT', default: true },
-		{ value: 'llama', label: 'Llama' }
+		{ value: 'MiniCPM5-2B', label: 'MiniCPM5 2B', default: true }, // preselected
+		{ value: 'Qwen3.5-4B',  label: 'Qwen3.5 4B' },
+		{ value: 'gpt-oss' } // label defaults to value
 	]
 }
 ```
