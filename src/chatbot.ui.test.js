@@ -10,7 +10,7 @@ describe('chatbot.ui.test.js', () => {
 
 	beforeEach(() => {
 		document.body.innerHTML= '';
-		bot= chatbot.chatbot({connector: toUpperCaseConnector()});
+		bot= chatbot.chatbot({connector: toUpperCaseConnector});
 		const config= {title: 'Dummy Title', footerHtml: '<span class="dummy-footer">FOOOTER</span>'};
 		ui.chatbotUi(bot, queryExpectedElement('body'), config);
 	});
@@ -38,7 +38,7 @@ describe('chatbot.ui.test.js', () => {
 
 	test('code copy button', async () => {
 		document.body.innerHTML= '';
-		const codeBot= chatbot.chatbot({connector: codeBlockConnector()});
+		const codeBot= chatbot.chatbot({connector: codeBlockConnector});
 		ui.chatbotUi(codeBot, queryExpectedElement('body'), {});
 		await codeBot.send('hi');
 
@@ -79,7 +79,7 @@ describe('question navigation rail', () => {
 
 	function newUi(config) {
 		document.body.innerHTML= '';
-		const bot= chatbot.chatbot({ connector: toUpperCaseConnector() });
+		const bot= chatbot.chatbot({ connector: toUpperCaseConnector });
 		ui.chatbotUi(bot, queryExpectedElement('body'), config || {});
 		return bot;
 	}
@@ -135,7 +135,7 @@ describe('question navigation rail', () => {
 		const bot= newUi();
 		await ask(bot, 4);
 		bot.reset();
-		const rail= document.querySelector('.-c-qnav');
+		const rail= queryExpectedElement('.-c-qnav');
 		expect(rail.hidden, 'rail hidden after reset').toBe(true);
 		expect(document.querySelectorAll('.-c-qnav-item').length, 'no anchors after reset').toBe(0);
 	});
@@ -143,37 +143,27 @@ describe('question navigation rail', () => {
 });
 
 /**
- * @returns {chatbot.Connector}
+ * @type {chatbot.Connector}
  */
-function toUpperCaseConnector() {
-	return {
-		send: function(callback, msg) {
-			return new Promise((resolve) => {
-				setTimeout(() => {
-					callback((msg ? msg : '').toUpperCase());
-					resolve();
-				}, 100);
-			});
-		},
-		reset: function() {}
-	};
+function toUpperCaseConnector(callback, msg) {
+	return new Promise((resolve) => {
+		setTimeout(() => {
+			callback((msg ? msg : '').toUpperCase());
+			resolve();
+		}, 100);
+	});
 }
 
 /**
- * @returns {chatbot.Connector}
+ * @type {chatbot.Connector}
  */
-function codeBlockConnector() {
-	return {
-		send: function(callback) {
-			return new Promise((resolve) => {
-				setTimeout(() => {
-					callback('```\nconsole.log("hello");\n```');
-					resolve();
-				}, 100);
-			});
-		},
-		reset: function() {}
-	};
+function codeBlockConnector(callback) {
+	return new Promise((resolve) => {
+		setTimeout(() => {
+			callback('```\nconsole.log("hello");\n```');
+			resolve();
+		}, 100);
+	});
 }
 
 /**

@@ -53,11 +53,13 @@ const STREAM= true;
  */
 
 /**
- * @typedef {Object} Connector
- * @property {(callback: (delta: string, done?: boolean,
- *                        refs?: References, refsDelta?: string, refsDone?: boolean) => void,
- *              message: string|undefined, chatbot: Chatbot, options?: Record<string, unknown>) => Promise<void>} send
- * @property {function(): void} [reset]
+ * The transport function: sends the message and streams the reply back by calling `callback` one or more times (with
+ * the content delta, whether the reply is complete, and optionally references).
+ *
+ * @typedef {(callback: (delta: string, done?: boolean,
+ *                       refs?: References, refsDelta?: string, refsDone?: boolean) => void,
+ *            message: string|undefined, chatbot: Chatbot,
+ *            options?: Record<string, unknown>) => Promise<void>} Connector
  */
 
 /**
@@ -114,8 +116,8 @@ export function chatbot(urlOrConfig) {
 		}
 
 		// Deligate to configured connector if any
-		if (chatbot.config.connector && typeof chatbot.config.connector.send === 'function')
-			return chatbot.config.connector.send((delta, done, refs, refsDelta, refsDone) =>
+		if (typeof chatbot.config.connector === 'function')
+			return chatbot.config.connector((delta, done, refs, refsDelta, refsDone) =>
 					_apply(chatbot, delta, msgObj, true, done, refs, refsDelta, refsDone),
 				msg, chatbot, options).catch(onErrorFn);
 
@@ -302,9 +304,6 @@ export function chatbot(urlOrConfig) {
 		}
 		chatbot.desc= desc;
 		chatbot.messages= messages ? messages : [];
-		if (chatbot.config.connector && typeof chatbot.config.connector.reset === 'function') {
-			chatbot.config.connector.reset();
-		}
 		_apply(chatbot, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
 		if (messages) {
 			for (const msgObj of messages) {

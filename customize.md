@@ -7,13 +7,11 @@ Both `config` and `uiConfig` are plain objects. All properties are optional.
 ```js
 // Core, none-UI configuration
 var config= {
-	connector: {
-		send: function(callback, msg) {
-			return new Promise((resolve) => {
-				callback(msg.toUpperCase(), true);
-				resolve();
-			});
-		}
+	connector: (callback, msg) => {
+		return new Promise((resolve) => {
+			callback(msg.toUpperCase(), true);
+			resolve();
+		});
 	},
 	history: 'indexeddb'
 };
@@ -37,7 +35,7 @@ Passed to `chatbot(config)`. Instead of an object, a plain string can be passed 
 |---|---|---|---|
 | `url` | `string` | `'v1/chat/completions'` | Endpoint the chatbot sends requests to when no `connector` is configured. Used with an OpenAI-compatible chat completions API. |
 | `baseRequestData` | `Object \| function \| string` | `{}` | Base of the JSON request body sent to `url`. An object is used as-is (with `messages` and, for streaming, `stream: true` added); a function is called with `(chatbot, url, asStream)` and must return a string or an object to stringify; a string is sent as the request body verbatim, letting you build the whole payload yourself. |
-| `connector` | `Connector` | none | Custom transport that replaces the built-in HTTP request entirely. See "Custom connector" below. Takes precedence over `url` and `baseRequestData`. |
+| `connector` | `Connector` | none | Custom transport function that replaces the built-in HTTP request entirely. See "Custom connector" below. Takes precedence over `url` and `baseRequestData`. |
 | `sendHook` | `(message, chatbot, rawSendFn, options) => Promise` | none | Intercepts every call to `chatbot.send(...)`. Call `rawSendFn(message, options)` to continue the normal send, or handle the message yourself (for example to run client-side commands). |
 | `options` | `Array<Object> \| string \| function` | `[]` | Definition of the selectable options shown above the input field (for example a model picker). An array is used as-is; a string is fetched as a URL and expected to return the array as JSON; a function (which may return a `Promise`) is called with the chatbot and must resolve to the array. See "Options" below for the item shape. |
 | `history` | `'inmemory' \| 'indexeddb' \| History` | none | Enables persistence and the history sidebar. `'indexeddb'` stores chats in the browser's IndexedDB (survives reloads); `'inmemory'` keeps chats only for the current page life cycle; alternatively, pass a custom `History` implementation (see the `History` typedef in `chatbot.core.js`). |
@@ -47,19 +45,17 @@ Passed to `chatbot(config)`. Instead of an object, a plain string can be passed 
 
 ### Custom connector
 
-A `connector` is an object with a `send` method:
+A `connector` is a function that sends a message and streams the reply back:
 
 ```js
-connector: {
-	// callback(delta, done, refs, refsDelta, refsDone) streams the assistant reply back to the chatbot
-	send: function(callback, message, chatbot, options) {
-		return new Promise((resolve, reject) => {
-			// ... call your own backend, then invoke callback(...) one or more times ...
-			callback('Hello', false);
-			callback(' world', true);
-			resolve();
-		});
-	}
+// callback(delta, done, refs, refsDelta, refsDone) streams the assistant reply back to the chatbot
+connector: (callback, message, chatbot, options) => {
+	return new Promise((resolve, reject) => {
+		// ... call your own backend, then invoke callback(...) one or more times ...
+		callback('Hello, ', false);
+		callback('World!', true);
+		resolve();
+	});
 }
 ```
 

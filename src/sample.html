@@ -32,15 +32,13 @@ if (!window.location.href.startsWith('file:')) {
 	// Dummy connector when there is no API:
 	// A chatbot that responds with the question in uppercase (delay: 0.8s)
 	var config= {
-		connector: {
-			send: function(callback, msg) {
-				return new Promise((resolve) => {
-					setTimeout(() => {
-						callback(msg.toUpperCase(), true);
-						resolve();
-					}, 800);
-				});
-			}
+		connector: (callback, msg) => {
+			return new Promise((resolve) => {
+				setTimeout(() => {
+					callback(msg.toUpperCase(), true);
+					resolve();
+				}, 800);
+			});
 		},
 		history: 'indexeddb'
 	};

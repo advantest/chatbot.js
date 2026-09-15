@@ -63,7 +63,7 @@ async function testHistoryImpl(db) {
  * @param {'indexeddb' | 'inmemory'} history
  */
 async function testHistoryIntegration(history) {
-	const chat= chatbot.chatbot({history: history, connector: okConnector()});
+	const chat= chatbot.chatbot({history: history, connector: okConnector});
 	let chats= await chat.history?.list();
 	expect(chats?.length).toBe(0);
 
@@ -104,17 +104,11 @@ async function list(db, expectedLength) {
 }
 
 /**
- * @returns {chatbot.Connector}
+ * @type {chatbot.Connector}
  */
-function okConnector() {
-	// @ts-ignore
-	return {
-		send(callback) {
-			return new Promise((resolve) => {
-				// @ts-ignore
-				callback('ok', true);
-				resolve();
-			});
-		}
-	};
+function okConnector(callback) {
+	return new Promise((resolve) => {
+		callback('ok', true);
+		resolve();
+	});
 }

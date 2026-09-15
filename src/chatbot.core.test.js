@@ -4,7 +4,7 @@ describe('chatbot.core.test.js', () => {
 
 	test('hi', async () => {
 
-		const chat= chatbot.chatbot({connector: toUpperCaseConnector()});
+		const chat= chatbot.chatbot({connector: toUpperCaseConnector});
 		await chat.send('hi');
 		expect(chat.messages.length).toBeGreaterThan(0);
 		expect(chat.messages[0].content).toBe('hi');
@@ -13,7 +13,7 @@ describe('chatbot.core.test.js', () => {
 	});
 
 	test('observe', async () => {
-		const chat= chatbot.chatbot({connector: toUpperCaseConnector()});
+		const chat= chatbot.chatbot({connector: toUpperCaseConnector});
 		const log= [];
 		const observer= {
 			/** @type {(changes: Array.<chatbot.Change>) => void} */
@@ -46,11 +46,7 @@ describe('chatbot.core.test.js', () => {
 
 	test('connector failing on send', async () => {
 		const chat= chatbot.chatbot({
-			connector: {
-				send() {
-					return new Promise(() => { throw new Error('expected failed connector') });
-				}
-			}
+			connector: () => new Promise(() => { throw new Error('expected failed connector') })
 		});
 		const log= [];
 		const observer= {
@@ -68,19 +64,14 @@ describe('chatbot.core.test.js', () => {
 	});
 
 	/**
-	 * @returns {chatbot.Connector}
+	 * @type {chatbot.Connector}
 	 */
-	function toUpperCaseConnector() {
-		// @ts-ignore
-		return {
-			send(callback, msg) {
-				return new Promise((resolve) => {
-					// @ts-ignore
-					callback(msg.toUpperCase(), true);
-					resolve();
-				});
-			}
-		};
+	function toUpperCaseConnector(callback, msg) {
+		return new Promise((resolve) => {
+			// @ts-ignore
+			callback(msg.toUpperCase(), true);
+			resolve();
+		});
 	}
 
 });
