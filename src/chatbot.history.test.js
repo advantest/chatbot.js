@@ -80,9 +80,12 @@ async function testHistoryIntegration(history) {
 	expect(chat.messages.length).toBe(0);
 
 	// go back to chat from history
-	if (chat.history === undefined || chats === undefined) fail();
-	let messages= await chat.history.get(chats[0]);
-	chat.reset(messages, undefined, chats?.[0]);
+	expect(chat.history).toBeDefined;
+	expect(chats).toBeDefined();
+	if (chat.history && chats) {
+		let messages= await chat.history.get(chats[0]);
+		chat.reset(messages, undefined, chats?.[0]);
+	}
 	chats= await chat.history?.list();
 	expect(chats?.length).toBe(1);
 	expect(chat.messages.length).toBe(2);

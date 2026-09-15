@@ -80,14 +80,14 @@ describe('question navigation rail', () => {
 	function newUi(config) {
 		document.body.innerHTML= '';
 		const bot= chatbot.chatbot({ connector: toUpperCaseConnector() });
-		ui.chatbotUi(bot, document.querySelector('body'), config || {});
+		ui.chatbotUi(bot, queryExpectedElement('body'), config || {});
 		return bot;
 	}
 
 	test('rail exists but is hidden below the threshold', async () => {
 		const bot= newUi();
 		await ask(bot, 3);
-		const rail= document.querySelector('.-c-qnav');
+		const rail= queryExpectedElement('.-c-qnav');
 		expect(rail, 'rail element should exist').not.toBeNull();
 		expect(rail.hidden, 'rail hidden with 3 questions (default threshold 4)').toBe(true);
 	});
@@ -95,7 +95,7 @@ describe('question navigation rail', () => {
 	test('rail becomes visible at the threshold with one anchor per user question', async () => {
 		const bot= newUi();
 		await ask(bot, 4);
-		const rail= document.querySelector('.-c-qnav');
+		const rail= queryExpectedElement('.-c-qnav');
 		expect(rail.hidden, 'rail visible at 4 questions').toBe(false);
 		expect(document.querySelectorAll('.-c-qnav-item').length,
 			'one anchor per user question, assistant replies excluded').toBe(4);
@@ -111,7 +111,7 @@ describe('question navigation rail', () => {
 	test('questionNavThreshold config lowers the trigger', async () => {
 		const bot= newUi({ questionNavThreshold: 2 });
 		await ask(bot, 2);
-		expect(document.querySelector('.-c-qnav').hidden, 'visible after 2 with threshold 2').toBe(false);
+		expect(queryExpectedElement('.-c-qnav').hidden, 'visible after 2 with threshold 2').toBe(false);
 	});
 
 	test('questionNav:false disables the feature entirely', async () => {
@@ -124,6 +124,7 @@ describe('question navigation rail', () => {
 		const bot= newUi();
 		await ask(bot, 4);
 		const items= document.querySelectorAll('.-c-qnav-item');
+		// @ts-ignore
 		items.item(1).click();
 		const active= document.querySelectorAll('.-c-qnav-item.-c-active');
 		expect(active.length, 'exactly one active anchor').toBe(1);
@@ -198,7 +199,7 @@ function expectElement(selector, message, index) {
 function queryExpectedElement(selector) {
 	const element= document.querySelector(selector);
 	if (element === null) {
-		fail(`document.querySelector('${selector}') not found`);
+		throw new Error(`document.querySelector('${selector}') not found`);
 	}
 	// @ts-ignore
 	return element;
