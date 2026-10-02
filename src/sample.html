@@ -22,12 +22,28 @@
 
 var uiConfig= {
 	title: 'chatbot.js',
+	attach: true,
 	footerHtml: 'A chatbot can make mistakes. Check important info.'
 };
 var containerElement= document.getElementsByTagName('body')[0];
 if (!window.location.href.startsWith('file:')) {
 	chatbotUi(chatbot({history: 'indexeddb'}), containerElement, uiConfig).typeEverywhere(true);
 } else {
+	function getContentStr(content) {
+		if (typeof content === 'string') return content;
+		if (!content) return '[no content]';
+		var imageCount= 0;
+		var text;
+		for (const contentPart of content) {
+			if ('text' == contentPart.type && typeof contentPart.text === 'string') {
+				text= contentPart.text;
+			} else if ('image_url' == contentPart.type) {
+				imageCount++;
+			}
+		}
+		return (imageCount ? (imageCount > 1 ? '[' + imageCount + ' images]' : '[image]') : '[empty]') +
+			(text ? ' ' + text : '');
+	}
 
 	// Dummy connector when there is no API:
 	// A chatbot that responds with the question in uppercase (delay: 0.8s)
@@ -35,7 +51,7 @@ if (!window.location.href.startsWith('file:')) {
 		connector: (callback, msg) => {
 			return new Promise((resolve) => {
 				setTimeout(() => {
-					callback(msg.toUpperCase(), true);
+					callback(getContentStr(msg).toUpperCase(), true);
 					resolve();
 				}, 800);
 			});

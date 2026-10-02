@@ -11,7 +11,7 @@ const STREAM= true;
  * @property {History | undefined} history
  * @property {ChatDescriptor | undefined} desc
  * @property {ChatbotConfig} config
- * @property {(message: string, options?: Record<string, unknown>) => Promise<unknown>} send
+ * @property {(message: Content, options?: Record<string, unknown>) => Promise<unknown>} send
  * @property {function(Observer): void} observe
  * @property {(messages?: Array.<MessageObject>, send?: boolean, desc?: ChatDescriptor) => void} reset
  * @property {() => Promise<Array.<Record<string, unknown>>>} getOptions
@@ -23,15 +23,11 @@ const STREAM= true;
  */
 
 /**
- * @typedef {Array.<Record<string, unknown> & { h: string }>} References
- */
-
-/**
  * @typedef {Record<string, unknown> & { role: string,
- *                                       content: string | undefined,
- *                                       contentWithRefs: string | undefined,
- *                                       refs: References | undefined,
- *                                       options: Record<string, unknown> | undefined }} MessageObject
+ *                                       content?: Content,
+ *                                       contentWithRefs?: string,
+ *                                       refs?: References,
+ *                                       options?: Record<string, unknown> }} MessageObject
  */
 
 /**
@@ -39,8 +35,8 @@ const STREAM= true;
  * @property {string} [url]
  * @property {Record<string, unknown> | function | string} [baseRequestData]
  * @property {Connector} [connector]
- * @property {(message: string, chatbot: Chatbot,
- *             rawSendFn: ((message: string, options?: Record<string, unknown>) => Promise<unknown>),
+ * @property {(message: Content, chatbot: Chatbot,
+ *             rawSendFn: ((message: Content, options?: Record<string, unknown>) => Promise<unknown>),
  *             options?: Record<string, unknown>) => Promise<unknown>} [sendHook]
  * @property {Array.<Record<string, unknown>> | string | function} [options]
  * @property {'inmemory' | 'indexeddb' | History} [history]
@@ -58,8 +54,24 @@ const STREAM= true;
  *
  * @typedef {(callback: (delta: string, done?: boolean,
  *                       refs?: References, refsDelta?: string, refsDone?: boolean) => void,
- *            message: string|undefined, chatbot: Chatbot,
+ *            message: Content|undefined, chatbot: Chatbot,
  *            options?: Record<string, unknown>) => Promise<void>} Connector
+ */
+
+/**
+ * @typedef {string | ContentArray} Content
+ */
+
+/**
+ * @typedef {Array<ContentArrayItem>} ContentArray
+ */
+
+/**
+ * @typedef {{type: 'text', text: string} | {type: 'image_url', image_url: {url: string}}} ContentArrayItem
+ */
+
+/**
+ * @typedef {Array.<Record<string, unknown> & { h: string }>} References
  */
 
 /**
@@ -79,13 +91,13 @@ export function chatbot(urlOrConfig) {
 
 	/**
 	 * @param {Chatbot} chatbot
-	 * @param {string} [msg]
+	 * @param {Content} [msg]
 	 * @param {Record<string, unknown>} [options]
 	 */
 	function _send(chatbot, msg, options) {
 
 		// Add user message
-		if (typeof msg === 'string') {
+		if (msg) {
 			_apply(chatbot, msg, undefined, false, true, undefined, undefined, undefined, undefined, undefined, options);
 		}
 
@@ -162,7 +174,7 @@ export function chatbot(urlOrConfig) {
 
 	/**
 	 * @param {Chatbot} chatbot
-	 * @param {string} [delta]
+	 * @param {Content} [delta]
 	 * @param {MessageObject | undefined} [msgObj]
 	 * @param {boolean} [receive]
 	 * @param {boolean} [done]
@@ -199,7 +211,21 @@ export function chatbot(urlOrConfig) {
 			}
 		} else {
 			if (delta !== undefined) {
-				msgObj.content= (msgObj.content === undefined ? '' : msgObj.content) + delta;
+				if (!msgObj.content) {
+					msgObj.content= delta;
+				} else if (typeof msgObj.content === 'string') {
+					msgObj.content+= delta;
+				} else {
+					const firstTextPart= getFirstTextPart(msgObj.content);
+					if (firstTextPart) {
+						firstTextPart.text+= delta;
+					} else {
+						try {
+							// @ts-ignore
+							msgObj.content.push({type: 'text', text: delta});
+						} catch(_) {}
+					}
+				}
 				changes.push({ action: 'updateProperty', msgObj: target, property: 'content', value: msgObj.content, end: !!done });
 			}
 			if (refsDelta !== undefined) {
@@ -375,7 +401,7 @@ export function chatbot(urlOrConfig) {
 
 		send(msg, options) {
 			if (this.config.sendHook !== undefined) {
-				/** @type {(message: string, options?: Record<string, unknown>) => Promise<unknown>} */
+				/** @type {(message: Content, options?: Record<string, unknown>) => Promise<unknown>} */
 				const rawSendFn= (function(chatbot) {
 					return function(msg, options) {return _send(chatbot, msg, options)};
 				})(this);
@@ -402,7 +428,32 @@ export function chatbot(urlOrConfig) {
 /** @type {(messages: Array.<MessageObject>) => string} */
 function chatNameFromFirstMessage(messages) {
 	if (!messages || !messages.length || !messages[0].content) return '';
-	return messages[0].content.substring(0, 42) + (messages[0].content.length > 42 ? '...' : '');
+	if (typeof messages[0].content === 'string') {
+		const firstMsgTrimmed= messages[0].content.trim();
+		return firstMsgTrimmed.substring(0, 42) + (firstMsgTrimmed.length > 42 ? '...' : '');
+	}
+	const firstTextPart= getFirstTextPart(messages[0].content);
+	if (firstTextPart && typeof firstTextPart.text === 'string' && firstTextPart.text.trim().length) {
+		const firstMsgTrimmed= firstTextPart.text.trim();
+		return firstMsgTrimmed.substring(0, 42) + (firstMsgTrimmed.length > 42 ? '...' : '');
+	}
+	let imageCount= 0;
+	for (const contentPart of messages[0].content) {
+		if ('image_url' == contentPart.type) {
+			imageCount++;
+		}
+	}
+	return imageCount ? (imageCount > 1 ? `[${imageCount} images]` : '[image]') : '[empty]';
+}
+
+/** @type {(content: Content) => {[k: string]: unknown, type: 'text', text: string} | undefined} */
+function getFirstTextPart(content) {
+	try {
+		for (const contentPart of content) {
+			// @ts-ignore
+			if ('text' == contentPart.type && typeof contentPart.text === 'string') return contentPart;
+		}
+	} catch (_) {}
 }
 
 /**

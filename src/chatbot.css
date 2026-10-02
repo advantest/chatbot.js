@@ -299,36 +299,44 @@
 }
 .-c-form {
 	border-radius: 1.75rem;
-	display: flex;
-	flex-direction: row;
-	padding: .625rem;
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	padding: .625rem .625rem .625rem 1.25rem;
+	gap: .625rem;
 	background: #fff;
 	border: 1px solid #cfcfcf;
 	box-shadow: rgba(0, 0, 0, .04) 0px 4px 4px 0px, rgba(0, 0, 0, .62) 0px 0px 1px 0px, 0 2rem 2rem 3rem #fff;
+	grid-template-areas: "text text send";
 }
-.-c-form.-c-o {
-	display: grid;
-	grid-template-rows: 1fr auto;
-	grid-template-columns: 1fr auto;
+.-c-form.-c-o, .-c-form:has(.-c-attach) {
+	padding: .625rem;
+}
+.-c-form:has(> .-c-thumbs) {
+	grid-template-areas: "att att att" "add text send";
+}
+.-c-form:has(> .-c-thumbs[hidden]):has(.-c-attach) {
+	grid-template-areas: "add text send";
+}
+.-c-form.-c-o, .-c-form.-c-o:has(> .-c-thumbs[hidden]) {
+	grid-template-areas: "text text text" "opts opts send";
+}
+.-c-form.-c-o:has(.-c-attach) {
+	grid-template-areas: "att att att" "text text text" "add opts send";
+}
+.-c-form.-c-o:has(.-c-attach):has(> .-c-thumbs[hidden]) {
+	grid-template-areas: "text text text" "add opts send";
 }
 .-c-input {
-	flex: 1;
+	grid-area: text;
 	display: block;
 	width: 100%;
-	margin: 0 -2.25rem 0 0;
-	padding: 0 2.5rem 0 .75rem;
-	justify-content: center;
 	border: none;
 	outline: none;
 	background: transparent;
 	resize: none;
 }
-.-c-o .-c-input {
-	grid-column-start: 1;
-	grid-column-end: 3;
-	padding: 0 .15rem;
-	margin: 6px 0;
-	min-height: 1.75rem;
+.-c-form.-c-o .-c-input {
+	padding: 0 0.625rem;
 }
 .-c-input::placeholder, .-c-footer, .-c-footer a {
 	color: #8f8f8f;
@@ -430,10 +438,71 @@
 	background: #f9f9f9;
 }
 
-/* Options */
+/* Attached, add, options, send */
+.-c-thumbs {
+	display: flex;
+	gap: .625rem;
+	line-height: 0;
+	overflow-y: auto;
+}
+.-c-thumbs[hidden] {
+	display: none;
+}
+.-c-form .-c-thumbs {
+	grid-column: 1 / -1;
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 48rem; /* = .-c-form max-width */
+	line-height: 0;
+}
+.-c-msg .-c-thumbs {
+	margin: 0 -.625rem;
+}
+.-c-thumb {
+	position: relative;
+}
+.-c-thumb img {
+	background: #fff;
+	object-fit: contain;
+	max-width: 100%;
+	max-height: 8rem;
+	min-width: 3rem;
+	min-height: 3rem;
+	border: 1px solid #cfcfcf;
+	border-radius: 1.125rem;
+}
+.-c-msg .-c-thumb img {
+	border-radius: .5rem;
+	max-height: 14rem;
+}
+.-c-attachDel {
+	position: absolute;
+	width: 1.5rem;
+	height: 1.5rem;
+	top: .375rem;
+	right: .375rem;
+	background: #0d0d0d;
+}
+.-c-send {
+	grid-area: send;
+}
+.-c-options {
+	grid-area: opts;
+	display: flex;
+	gap: .625rem;
+}
 .-c-options .-c-btn, .lm-dropdown-input {
 	width: auto;
 	background: #ececec;
+}
+.-c-btn.-c-attach {
+	grid-area: add;
+	color: #0d0d0d;
+	background: none;
+	align-self: flex-start;
+}
+.-c-btn.-c-attach:hover {
+	background: #f0f0f0;
 }
 .-c-options .-c-btn, .-c-items button {
 	color: #0d0d0d;
@@ -528,6 +597,20 @@
 }
 .-c-md li {
 	margin: .5rem 0;
+}
+.-c-md img {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	margin: .75rem 0;
+	padding: .5rem;
+	border: 1px solid var(--lm-border-color, #ccc);
+	border-radius: .375rem;
+	background: #fff;
+}
+.-c-md a:has(> img) {
+	display: inline-block;
+	text-decoration: none;
 }
 .-c-md code, .-c-msg pre {
 	font-family: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
@@ -1035,6 +1118,9 @@
 	box-sizing: border-box;
 	outline-offset: 1px;
 	vertical-align: top;
+
+	/* MODIFIED */
+	margin-bottom: -1px;
 }
 .lm-dropdown[data-disabled="true"] {
 	opacity: 0.5;

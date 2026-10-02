@@ -38,7 +38,7 @@ export function setClassName(element, value) {
 }
 
 /**
- * @param {Element | Window} element
+ * @param {Element | Window | Document } element
  * @param {string} type
  * @param {Function} fn
  */
@@ -57,11 +57,16 @@ export function addEvent(element, type, fn) {
 	}
 }
 
+/**
+ * @param {Event} e
+ */
 export function preventDefault(e) {
+	// @ts-ignore
 	e = e || window.event;
 	if (!e) return;
 	try {
 		if (e.preventDefault) e.preventDefault();
+		// @ts-ignore
 		e.returnValue = false;
 	} catch(e) {}
 }

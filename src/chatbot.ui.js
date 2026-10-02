@@ -1,7 +1,7 @@
 import * as chatbot from './chatbot.core.js';
 import { createElement, addEvent, preventDefault, setClassName, UNDEFINED, CLASS_PREFIX } from './chatbot.ui.utility.js';
 import { resolve, mdToHtml, renderMd } from './chatbot.ui.md.js';
-import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD, SVG_TRY_AGAIN } from './chatbot.ui.icons.js';
+import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD, SVG_TRY_AGAIN, SVG_ATTACH, SVG_REMOVE } from './chatbot.ui.icons.js';
 import { Dropdown } from './lemonadejs.dropdown.js';
 
 const MAX_HEIGHT_OF_WIDGET_PERCENTAGE= 0.61;
@@ -38,6 +38,7 @@ const ANIMATION_DELAY_DEFAULT= 16; // in milliseconds; 60hz ~ 16.67ms
 export function chatbotUi(chatbot, parent, config) {
 	let _isSplash= true;
 	let _isReadyToSend= true;
+	let _isWaitingToSend= false;
 	let _isTypeEverywhere= false;
 	let _autoScrollType= 'top';
 	let _refsMapByMsgObj= new Map();
@@ -184,6 +185,56 @@ export function chatbotUi(chatbot, parent, config) {
 		addEvent(main, 'scroll', scheduleQuestionNavActiveUpdate);
 	}
 
+	// Attaching/uploading
+	const _attachSupported= getConfigBoolean('attach');
+	const _attachAccept= getConfigString('attachAccept', 'image/*');
+	const _attachMax= getConfigNumber('attachMax', -1);
+	const _attachOnlyRequest= getConfigBoolean('attachOnlyRequest', true);
+	/** @type {chatbot.ContentArray} */
+	const _attached= [];
+	let _attachQueue= Promise.resolve();
+	const _attachedArea= _attachSupported ? createElement(form, 'div', 'thumbs') : UNDEFINED;
+	if (_attachedArea) {
+		const button= createBtn(form, 'attach', SVG_ATTACH, 'Attach an image');
+		/** @type {HTMLInputElement} */ // @ts-ignore
+		const picker= createElement(form, 'input', 'file');
+		picker.type= 'file';
+		picker.hidden= true;
+		if (_attachMax < 0 || _attachMax > 1) {
+			picker.multiple= true;
+		}
+		if (_attachAccept) {
+			picker.accept= _attachAccept;
+		}
+		addEvent(button, 'click', (/** @type {Event} */ e) => { preventDefault(e); picker.click(); });
+		addEvent(picker, 'change', () => {
+			if (!picker.files) return;
+			for (const file of picker.files) {
+				attachImageFile(file);
+			}
+			picker.value= '';
+		});
+		clearAttached();
+
+		// Paste images via Ctrl+V
+		addEvent(_widget, 'paste', (/** @type {ClipboardEvent} */ e) => {
+			const files= getImagesFromClipboard(e.clipboardData);
+			if (!files.length) return;
+			preventDefault(e);
+			for (const file of files) {
+				attachImageFile(file);
+			}
+		});
+
+	}
+	function clearAttached() {
+		_attached.splice(0);
+		if (_attachedArea) {
+			_attachedArea.innerHTML= '';
+			_attachedArea.hidden= true;
+		}
+	}
+
 	/** @type {Record<string, unknown>} */
 	const selected= {};
 
@@ -192,6 +243,7 @@ export function chatbotUi(chatbot, parent, config) {
 
 	const _map= new Map();
 	const _errorObj= {};
+
 	function getElementOfLastMessage() {
 		for (let i= chatbot.messages.length - 1; i >= 0; i--) {
 			const element= _map.get(chatbot.messages[i]);
@@ -387,29 +439,61 @@ export function chatbotUi(chatbot, parent, config) {
 	const optionsElements= [];
 	const chatScopeOptions= [];
 	addOptionsControl(form, sendButton, chatbot.getOptions(), selected, optionsElements, chatScopeOptions);
+	function _hasContentToSend() {
+		return _input.value.trim() !== '' || (_attachOnlyRequest && !!_attached.length);
+	}
 	function _updateSendButtonEnablement() {
-		if (_input.value.trim() === '' || !_isReadyToSend) {
-			sendButton.setAttribute('disabled', '');
-		} else {
+		if (_isReadyToSend && !_isWaitingToSend && _hasContentToSend()) {
 			sendButton.removeAttribute('disabled');
+		} else {
+			sendButton.setAttribute('disabled', '');
 		}
 	}
-	function sendAction(e) {
-		if (_isReadyToSend) {
-			const value= _input.value;
+
+	function sendAction(/** @type {Event} */ e) {
+		preventDefault(e);
+		if (_isReadyToSend && !_isWaitingToSend && _hasContentToSend()) {
+			_isWaitingToSend= true;
+			_updateSendButtonEnablement();
+			sendContent();
+		}
+		return false;
+	}
+	async function sendContent() {
+		try {
+			if (_attachSupported) {
+				let queue;
+				do {
+					queue= _attachQueue;
+					await queue;
+				} while (queue !== _attachQueue);
+			}
+			if (!_isReadyToSend || !_hasContentToSend()) return;
+			/** @type {chatbot.Content} */
+			let content= _input.value;
+			if (_attachSupported) {
+				if (_attached.length) {
+					content= _attached.splice(0);
+					if (_input.value.trim()) {
+						content.push({ type: 'text', text: _input.value });
+					}
+					clearAttached();
+				}
+			}
 			_input.value= '';
 			_updateSendButtonEnablement();
 			_resizeAndScroll(false, false, true);
-			chatbot.send(value, selected);
+			chatbot.send(content, selected);
 			if (_isTypeEverywhere) {
 				_input.focus();
 			}
+		} finally {
+			_isWaitingToSend= false;
+			_updateSendButtonEnablement();
 		}
-		preventDefault(e);
-		return false;
 	}
 	addEvent(sendButton, 'click', sendAction);
-	function inputKeyHandler(e) {
+	function inputKeyHandler(/** @type {KeyboardEvent} */ e) {
 		return e.keyCode == 13 && !e.shiftKey ? sendAction(e) : true;
 	};
 	addEvent(_input, 'keypress', inputKeyHandler);
@@ -487,16 +571,38 @@ export function chatbotUi(chatbot, parent, config) {
 				if (!skip) {
 					const msgObj= change.msgObj;
 					const role= change.msgObj.role;
-					const message= change.msgObj.content;
+					const message= getContentStr(change.msgObj.content);
 					const msgContainer=
 						createElement(_msgArea, 'div', 'msg-p role-' + role + (change.end ? ' done' : ''));
 					msgContainer.setAttribute('tabindex', '-1'); // with that it can be activated by clicking on it (CSS selector: ...:focus-within)
-					const plainText= role == 'user' ? message : undefined;
-					const msgElement= createElement(msgContainer, 'div', 'msg' + (role == 'user' ? '' : ' md'), plainText);
+					const msgElement= createElement(msgContainer, 'div', 'msg' + (role == 'user' ? '' : ' md'));
 					_map.set(change.msgObj, msgElement);
-					if (message === undefined) {
+
+					// Attached images
+					if (msgObj.content && typeof msgObj.content !== 'string') {
+						const attachedImages= [];
+						for (const contentPart of msgObj.content) {
+							if ('image_url' == contentPart.type && typeof contentPart.image_url?.url === 'string') {
+								attachedImages.push(contentPart.image_url.url);
+							}
+						}
+						if (attachedImages.length) {
+							const thumbs= createElement(msgElement, 'div', 'thumbs');
+							for (const imageSource of attachedImages) {
+								/** @type {HTMLImageElement} */ // @ts-ignore
+								const img= createElement(createElement(thumbs, 'div', 'thumb'), 'img', 'thumb');
+								img.src= imageSource;
+								img.alt= '';
+							}
+						}
+					}
+
+					// Content text
+					if (role == 'user') {
+						msgElement.appendChild(document.createTextNode(message));
+					} else if (!message) {
 						createElement(msgElement, 'p', 'wait');
-					} else if (role != 'user') {
+					} else {
 						let messageMd= message;
 						if (change.msgObj.contentWithRefs && change.msgObj.refs) {
 							const refsMap= new Map();
@@ -505,6 +611,8 @@ export function chatbotUi(chatbot, parent, config) {
 						}
 						renderMd(msgElement, messageMd);
 					}
+
+					// Toolbar
 					const toolbar= createElement(msgContainer, 'div', 'tbar');
 					_toolbarByMsgObj.set(change.msgObj, toolbar);
 					const copyButton= createBtn(toolbar, 'copy', SVG_COPY, 'Copy');
@@ -514,12 +622,13 @@ export function chatbotUi(chatbot, parent, config) {
 					const copyButtonDefaultInner= copyButton.innerHTML;
 					addEvent(copyButton, 'click', () => {
 						if (!change.msgObj || !change.msgObj.content) return;
+						const contentStr= getContentStr(change.msgObj.content);
 						navigator.clipboard.write([
 								new ClipboardItem(
 									role == 'user'
-									? { 'text/plain': new Blob([change.msgObj.content], { type: 'text/plain' }) }
-									: { 'text/plain': new Blob([change.msgObj.content], { type: 'text/plain' }),
-										'text/html': new Blob([mdToHtml(change.msgObj.content)], { type: 'text/html' }) }
+									? { 'text/plain': new Blob([contentStr], { type: 'text/plain' }) }
+									: { 'text/plain': new Blob([contentStr], { type: 'text/plain' }),
+										'text/html': new Blob([mdToHtml(contentStr)], { type: 'text/html' }) }
 							)
 						]).then(() => {
 							copyButton.innerHTML= getConfigString('doneBtn', SVG_DONE);
@@ -539,6 +648,8 @@ export function chatbotUi(chatbot, parent, config) {
 					if (config && typeof config.customizeMsgFn === 'function') {
 						config.customizeMsgFn(toolbar, msgElement, role == 'user', change.msgObj);
 					}
+
+					// Update UI
 					if (role == 'user') {
 						addQuestionNavItem(change.msgObj, msgContainer, message ? message : '');
 						updateQuestionNavVisibility();
@@ -549,31 +660,31 @@ export function chatbotUi(chatbot, parent, config) {
 			} else if (change.action == 'readyToSend' && change.value !== undefined) {
 				_isReadyToSend= change.value;
 				_updateSendButtonEnablement();
-			} else if (change.action == 'updateProperty' && change.property == 'content' && change.msgObj) {
-				const streamElement= _map.get(change.msgObj);
-				if (!streamElement || change.msgObj.content === undefined) return;
-				if (streamElement._a != change.msgObj.content) {
-					streamElement._a= change.msgObj.content;
-					renderMd(streamElement, change.msgObj.content);
+			} else if (change.action == 'updateProperty' && change.msgObj &&
+				(change.property == 'content' || change.property == 'contentWithRefs' || change.property == 'refs')) {
+				const msgObj= change.msgObj;
+				const streamElement= _map.get(msgObj);
+				if (!streamElement || !msgObj.content) return;
+				let answer= getContentStr(msgObj.content);
+				let sourcesMightHaveChanged= false;
+				if (msgObj.contentWithRefs && msgObj.refs) {
+					const refsMap= new Map();
+					answer= resolve(getContentStr(msgObj.content), msgObj.contentWithRefs, msgObj.refs, refsMap,
+						chatbot.config.refsBaseUrl);
+					_refsMapByMsgObj.set(msgObj, refsMap);
+					sourcesMightHaveChanged= true;
 				}
-				if (change.end) {
-					streamElement.parentNode.className+= ' ' + CLASS_PREFIX + 'done';
+				if (streamElement._a != answer) {
+					streamElement._a= answer;
+					renderMd(streamElement, answer);
 				}
-				_resizeAndScroll(false, true, false, streamElement, false);
-			} else if (change.action == 'updateProperty' && change.property == 'contentWithRefs' && change.msgObj) {
-				const streamElement= _map.get(change.msgObj);
-				if (!streamElement || change.msgObj.content === undefined || change.msgObj.contentWithRefs === undefined || change.msgObj.refs === undefined) return;
-				const refsMap= new Map();
-				const groundedAnswer= resolve(change.msgObj.content, change.msgObj.contentWithRefs, change.msgObj.refs, refsMap, chatbot.config.refsBaseUrl);
-				_refsMapByMsgObj.set(change.msgObj, refsMap);
-				if (streamElement._a != groundedAnswer) {
-					streamElement._a= groundedAnswer;
-					renderMd(streamElement, groundedAnswer);
+				if (change.end && (change.property == 'content' || change.property == 'contentWithRefs')) {
+					streamElement.parentNode.className+=
+						' ' + CLASS_PREFIX + (change.property == 'content' ? '' : 'ref-') + 'done';
 				}
-				if (change.end) {
-					streamElement.parentNode.className+= ' ' + CLASS_PREFIX + 'ref-done';
+				if (sourcesMightHaveChanged) {
+					updateSourcesSidebar(change);
 				}
-				updateSourcesSidebar(change);
 				_resizeAndScroll(false, true, false, streamElement, false);
 			} else if (change.action == 'sent') {
 				if (change.msgObj) {
@@ -676,6 +787,7 @@ export function chatbotUi(chatbot, parent, config) {
 		}
 	}
 
+	/** @param {chatbot.Change} change */
 	function updateSourcesSidebar(change) {
 		if (_sourcesSidebarMsgObj !== change.msgObj) return;
 		const refsMap= _refsMapByMsgObj.get(_sourcesSidebarMsgObj);
@@ -775,8 +887,7 @@ export function chatbotUi(chatbot, parent, config) {
 			const trimmed= str.trim();
 			if (_input.value.trim().endsWith(trimmed)) return;
 			for (const msgObj of chatbot.messages) {
-				if (msgObj.role === 'user' && typeof msgObj.content === 'string' && trimmed == msgObj.content.trim())
-					return;
+				if (msgObj.role === 'user' && trimmed == getContentStr(msgObj.content).trim()) return;
 			}
 
 			// Send?
@@ -797,18 +908,18 @@ export function chatbotUi(chatbot, parent, config) {
 	}
 
 	/**
-	 * @param {string} prop
-	 * @param {string|0} [defaultValue]
-	 * @returns {string}
+	 * @param {string} prop - Name of the UI configuration property.
+	 * @param {string|0} [defaultValue] - Value to return if the property is not set to a string.
+	 * @returns {string} The configured string, or else the default value (empty string if no default is given).
 	 */
 	function getConfigString(prop, defaultValue) {
 		return config !== undefined && typeof config[prop] === 'string' ? config[prop] : (defaultValue ? defaultValue : '');
 	}
 
 	/**
-	 * @param {string} prop
-	 * @param {boolean} defaultValue
-	 * @returns {boolean}
+	 * @param {string} prop - Name of the UI configuration property.
+	 * @param {boolean} [defaultValue=false] - Value to return if the property is not set to a boolean.
+	 * @returns {boolean} The configured boolean, or else the default value (`false` if no default is given).
 	 */
 	function getConfigBoolean(prop, defaultValue) {
 		return config !== undefined && typeof config[prop] === 'boolean' ? config[prop] : (defaultValue ? defaultValue : false);
@@ -816,6 +927,8 @@ export function chatbotUi(chatbot, parent, config) {
 
 	/**
 	 * @param {string} prop
+	 * @param {number} defaultValue
+	 * @returns {number}
 	 */
 	function getConfigNumber(prop, defaultValue) {
 		return config !== undefined && typeof config[prop] === 'number' && isFinite(config[prop]) ? config[prop] : defaultValue;
@@ -832,6 +945,7 @@ export function chatbotUi(chatbot, parent, config) {
 	function createBtn(parent, id, defaultSvg, defaultTitle, defaultText) {
 		/** @type {HTMLButtonElement} */ // @ts-ignore
 		const btn= createElement(parent, 'button', 'btn ' + id);
+		btn.type= 'button';
 		btn.innerHTML= getConfigString(id + 'Btn', defaultSvg);
 		const text= getConfigString(id + 'BtnText', defaultText);
 		if (text && text != '') {
@@ -839,6 +953,85 @@ export function chatbotUi(chatbot, parent, config) {
 		}
 		btn.title= getConfigString(id + 'Hover', defaultTitle);
 		return btn;
+	}
+
+	/**
+	 * @param {File} file
+	 */
+	function attachImageFile(file) {
+		if (!isImageFileAcceptable(file)) return;
+		_attachQueue= _attachQueue
+			.then(() => {
+				return new Promise((resolve, reject) => {
+					const reader= new FileReader();
+					reader.onload= () => resolve(reader.result);
+					reader.onerror= () => reject(reader.error);
+					reader.readAsDataURL(file);
+				});
+			})
+			.then((/** @type {string} */ url) => {
+				if (typeof url !== 'string') return;
+
+				// Duplicate?
+				for (const alreadyAttached of _attached) {
+					if (alreadyAttached.type != 'image_url') continue;
+					if (url == alreadyAttached.image_url.url) return;
+				}
+
+				/** @type {chatbot.ContentArrayItem} */
+				const imageObj= { type: 'image_url', image_url: { url: url} };
+				_attached.push(imageObj);
+				if (_attachedArea) {
+					_attachedArea.hidden= !_attached.length;
+					const thumb= createElement(_attachedArea, 'div', 'thumb');
+					/** @type {HTMLImageElement} */ // @ts-ignore
+					const img= createElement(thumb, 'img');
+					img.src= url;
+					const removeBtn= createBtn(thumb, 'attachDel', SVG_REMOVE, 'Remove image');
+					addEvent(removeBtn, 'click', (/** @type {Event} */ e) => {
+						preventDefault(e);
+						const i = _attached.indexOf(imageObj);
+						if (i !== -1) _attached.splice(i, 1);
+						thumb.remove();
+						if (!_attached.length) {
+							clearAttached();
+						}
+						_updateSendButtonEnablement();
+						_resizeAndScroll(true);
+					});
+				}
+
+				// Too many attachments?
+				if (_attachMax > 0 && _attached.length > _attachMax) {
+					const n= _attached.length - _attachMax;
+					_attached.splice(0, n);
+					if (_attachedArea) {
+						Array.from(_attachedArea.children).slice(0, n).forEach(thumb => thumb.remove());
+					}
+				}
+
+				_updateSendButtonEnablement();
+				_resizeAndScroll(true);
+			})
+			.catch(() => {}); // skip unreadable files without blocking the queue
+	}
+
+	/**
+	 * @param {File} file
+	 * @returns {boolean}
+	 */
+	function isImageFileAcceptable(file) {
+		if (!file) return false;
+		const type= file.type.toLowerCase();
+		if (!type.startsWith('image/')) return false;
+		const name= file.name.toLowerCase();
+		for (const item of _attachAccept.split(',')) {
+			const accept= item.trim().toLowerCase();
+			if (accept == 'image/*'
+				|| (accept.startsWith('image/') && accept == type)
+				|| (accept.startsWith('.') && name.endsWith(accept))) return true;
+		}
+		return false;
 	}
 
 	/** @type {ChatbotUi & chatbot.Observer} */
@@ -864,6 +1057,40 @@ export function chatbotUi(chatbot, parent, config) {
 	};
 	chatbot.observe(ui);
 	return ui;
+}
+
+/**
+ * @param {DataTransfer | null} clipboardData
+ * @returns {Array<File>}
+ */
+function getImagesFromClipboard(clipboardData) {
+	const images= [];
+	if (!clipboardData) return images;
+	for (const file of clipboardData.files || []) {
+		if (file.type.indexOf('image/') != 0) continue;
+		images.push(file);
+	}
+	if (images.length) return images;
+	for (const item of clipboardData.items || []) {
+		if (item.kind != 'file' || item.type.indexOf('image/') != 0) continue;
+		const file= item.getAsFile();
+		if (!file) continue;
+		images.push(file);
+	}
+	return images;
+}
+
+/**
+ * @param {chatbot.Content | undefined} content
+ * @returns {string}
+ */
+function getContentStr(content) {
+	if (typeof content === 'string') return content;
+	if (!content) return '';
+	for (const contentPart of content) {
+		if ('text' == contentPart.type && typeof contentPart.text === 'string') return contentPart.text;
+	}
+	return '';
 }
 
 async function addOptionsControl(form, beforeChild, optionsPromis, selected, optionsElements, chatScopeOptions) {

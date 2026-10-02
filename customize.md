@@ -101,6 +101,10 @@ Passed as the third argument to `chatbotUi(chatbot, containerElement, uiConfig)`
 
 | Property | Type | Default | Description |
 |---|---|---|---|
+| `attach` | `boolean` | `false` | Enables attaching images: shows an attach button next to the input field and allows pasting images via Ctrl+V. Attached images are shown as thumbnails above the input field. |
+| `attachAccept` | `string` | `'image/*'` | Sets the image filter in the file chooser and restricts what sort of image can be pasted, for example `'image/png,image/jpeg'` or `'.png,.jpeg,.jpg'`. |
+| `attachMax` | `number` | `-1` (unlimited) | Maximum number of attached images per message. When exceeded, the oldest attachments are removed. With `1`, the file picker allows selecting only a single file. |
+| `attachOnlyRequest` | `boolean` | `true` | Allows sending a message that consists only of attachments (without text). Set to `false` to require text. |
 | `newBtn` | `boolean` | `true` | Shows the "New chat" button. Set to `false` to hide it. |
 | `closeBtn` | `boolean` | `false` | Shows a close button in the top bar. |
 | `closeFn` | `function` | none | Called when the close button is clicked. Only relevant together with `closeBtn: true`. |
@@ -123,15 +127,17 @@ Built-in buttons can be individually restyled. For a button with ID `<id>`, the 
 
 Available IDs: `new` (New chat), `sidebar` (open history sidebar), `close` (close the top bar or the sources
 sidebar), `send` (send message), `copy` (copy a message; `doneBtn` overrides the icon shown briefly after a
-successful copy), `errorRetry` (retry after a failed send).
+successful copy), `errorRetry` (retry after a failed send), `attach` (attach an image), `attachDel` (remove an
+attached image).
 
 Example:
 
 ```js
 var uiConfig= {
+	attach: true,
+	attachMax: 1,
 	newHover: 'Start new chat',
-	copyBtn: '<svg>...</svg>',
-	doneBtn: '<svg>...</svg>'
+	copyBtn: '<svg>...</svg>'
 };
 ```
 
