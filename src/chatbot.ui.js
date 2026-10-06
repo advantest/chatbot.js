@@ -1056,6 +1056,7 @@ export function chatbotUi(chatbot, parent, config) {
 		}
 	};
 	chatbot.observe(ui);
+	_resizeAndScroll(true);
 	return ui;
 }
 
