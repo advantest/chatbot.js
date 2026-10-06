@@ -680,7 +680,7 @@ function toUpperCaseConnector(callback, msg) {
 		setTimeout(() => {
 			callback((typeof msg === 'string' ? msg : '').toUpperCase());
 			resolve();
-		}, 100);
+		}, 10);
 	});
 }
 
@@ -692,7 +692,7 @@ function codeBlockConnector(callback) {
 		setTimeout(() => {
 			callback('```\nconsole.log("hello");\n```');
 			resolve();
-		}, 100);
+		}, 10);
 	});
 }
 
