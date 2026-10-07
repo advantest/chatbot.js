@@ -5,7 +5,7 @@
 	flex-direction: row;
 	margin: 0;
 	padding: 0;
-	background: #fff;
+	background: #fcfcfc;
 	isolation: isolate;
 }
 .-c-widget, .-c-widget * {
@@ -283,6 +283,7 @@
 .-c-msg {
 	width: auto;
 	overflow-wrap: break-word;
+	line-height: 1.5rem;
 }
 .-c-msg-p * {
 	word-wrap: anywhere;
@@ -293,23 +294,23 @@
 .-c-msg-p.-c-role-user .-c-msg {
 	max-width: 33.7rem; /* =48rem*0.70 */
 	white-space: pre-wrap;
-	background: #f4f4f4;
-	padding: .625rem 1.25rem;
+	background: #e8f3fe;
+	padding: .5rem 1rem;
 	border-radius: 1.125rem;
 }
 .-c-form {
 	border-radius: 1.75rem;
 	display: grid;
 	grid-template-columns: auto 1fr auto;
-	padding: .625rem .625rem .625rem 1.25rem;
-	gap: .625rem;
+	padding: .5rem .5rem .5rem 1rem;
+	gap: .5rem;
 	background: #fff;
-	border: 1px solid #cfcfcf;
-	box-shadow: rgba(0, 0, 0, .04) 0px 4px 4px 0px, rgba(0, 0, 0, .62) 0px 0px 1px 0px, 0 2rem 2rem 3rem #fff;
+	border: 0 solid #cfcfcf;
+	box-shadow: #000 0 0 0 0, rgba(0, 0, 0, 0.04) 0 0 0 1px, rgba(0, 0, 0, 0.04) 0 2px 8px 0, rgba(0, 0, 0, 0.024) 0 4px 80px 8px;
 	grid-template-areas: "text text send";
 }
 .-c-form.-c-o, .-c-form:has(.-c-attach) {
-	padding: .625rem;
+	padding: .5rem;
 }
 .-c-form:has(> .-c-thumbs) {
 	grid-template-areas: "att att att" "add text send";
@@ -334,9 +335,10 @@
 	outline: none;
 	background: transparent;
 	resize: none;
+	line-height: 1.5rem;
 }
 .-c-form.-c-o .-c-input {
-	padding: 0 0.625rem;
+	padding: 0 .5rem;
 }
 .-c-input::placeholder, .-c-footer, .-c-footer a {
 	color: #8f8f8f;
@@ -485,6 +487,7 @@
 }
 .-c-send {
 	grid-area: send;
+	background: #3a83f7;
 }
 .-c-options {
 	grid-area: opts;
