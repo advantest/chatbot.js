@@ -1,6 +1,7 @@
 import { sendHttpRequest } from './chatbot.http.js';
 import { createInmemoryHistory } from './chatbot.history.in_memory.js';
 import { createIndexeddbHistory } from './chatbot.history.indexeddb.js';
+import { mergeRefs, removeRefs } from './chatbot.refs.js';
 
 const DEFAULT_URL= 'v1/chat/completions';
 const STREAM= true;
@@ -40,7 +41,7 @@ const STREAM= true;
  *             options?: Record<string, unknown>) => Promise<unknown>} [sendHook]
  * @property {Array.<Record<string, unknown>> | string | function} [options]
  * @property {'inmemory' | 'indexeddb' | History} [history]
- * @property {string} [refsBaseUrl]
+ * @property {string} [refsBaseUrl=''] - Base URL prepended to reference hrefs when rendering cited sources and the sources sidebar.
  */
 
 /**
@@ -52,7 +53,7 @@ const STREAM= true;
  * The transport function: sends the message and streams the reply back by calling `callback` one or more times (with
  * the content delta, whether the reply is complete, and optionally references).
  *
- * @typedef {(callback: (delta: string, done?: boolean,
+ * @typedef {(callback: (delta?: string, done?: boolean,
  *                       refs?: References, refsDelta?: string, refsDone?: boolean) => void,
  *            message: Content|undefined, chatbot: Chatbot,
  *            options?: Record<string, unknown>) => Promise<void>} Connector
@@ -423,6 +424,34 @@ export function chatbot(urlOrConfig) {
 		sendHttpRequest
 
 	};
+}
+
+/**
+ * @param {MessageObject} msgObj
+ * @param {boolean} [withRefs]
+ * @returns {string}
+ */
+export function getContentText(msgObj, withRefs) {
+	if (!msgObj || !msgObj.content) return '';
+	const content= msgObj.content;
+	let text= '';
+	if (typeof content === 'string') {
+		text= content;
+	} else {
+		const result= [];
+		for (const contentPart of content) {
+			if ('text' == contentPart.type && typeof contentPart.text === 'string') {
+				result.push(contentPart.text);
+			}
+		}
+		text= result.join('\n\n');
+	}
+	if (typeof withRefs === 'undefined') return text;
+	if (withRefs) {
+		return (typeof msgObj.contentWithRefs === 'string' && typeof msgObj.refs === 'object')
+			? mergeRefs(text, msgObj.contentWithRefs) : text;
+	}
+	return removeRefs(text);
 }
 
 /** @type {(messages: Array.<MessageObject>) => string} */

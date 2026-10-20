@@ -1,6 +1,7 @@
 import * as chatbot from './chatbot.core.js';
+import { getContentText } from './chatbot.core.js';
 import { createElement, addEvent, preventDefault, setClassName, UNDEFINED, CLASS_PREFIX } from './chatbot.ui.utility.js';
-import { resolve, mdToHtml, renderMd } from './chatbot.ui.md.js';
+import { mdToHtml, renderMd } from './chatbot.ui.md.js';
 import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD, SVG_TRY_AGAIN, SVG_ATTACH, SVG_REMOVE } from './chatbot.ui.icons.js';
 import { Dropdown } from './lemonadejs.dropdown.js';
 
@@ -36,6 +37,8 @@ const ANIMATION_DELAY_DEFAULT= 16; // in milliseconds; 60hz ~ 16.67ms
  * @returns {ChatbotUi}
  */
 export function chatbotUi(chatbot, parent, config) {
+	const refsBaseUrl= getConfigString('refsBaseUrl', '', chatbot.config);
+
 	let _isSplash= true;
 	let _isReadyToSend= true;
 	let _isWaitingToSend= false;
@@ -571,7 +574,7 @@ export function chatbotUi(chatbot, parent, config) {
 				if (!skip) {
 					const msgObj= change.msgObj;
 					const role= change.msgObj.role;
-					const message= getContentStr(change.msgObj.content);
+					const message= getContentText(change.msgObj, true);
 					const msgContainer=
 						createElement(_msgArea, 'div', 'msg-p role-' + role + (change.end ? ' done' : ''));
 					msgContainer.setAttribute('tabindex', '-1'); // with that it can be activated by clicking on it (CSS selector: ...:focus-within)
@@ -603,13 +606,11 @@ export function chatbotUi(chatbot, parent, config) {
 					} else if (!message) {
 						createElement(msgElement, 'p', 'wait');
 					} else {
-						let messageMd= message;
-						if (change.msgObj.contentWithRefs && change.msgObj.refs) {
-							const refsMap= new Map();
-							messageMd= resolve(message, change.msgObj.contentWithRefs, change.msgObj.refs, refsMap, chatbot.config.refsBaseUrl);
+						const refsMap= new Map();
+						renderMd(msgElement, message, change.msgObj.refs, refsBaseUrl, refsMap);
+						if (refsMap.size) {
 							_refsMapByMsgObj.set(change.msgObj, refsMap);
 						}
-						renderMd(msgElement, messageMd);
 					}
 
 					// Toolbar
@@ -622,7 +623,7 @@ export function chatbotUi(chatbot, parent, config) {
 					const copyButtonDefaultInner= copyButton.innerHTML;
 					addEvent(copyButton, 'click', () => {
 						if (!change.msgObj || !change.msgObj.content) return;
-						const contentStr= getContentStr(change.msgObj.content);
+						const contentStr= getContentText(change.msgObj, false);
 						navigator.clipboard.write([
 								new ClipboardItem(
 									role == 'user'
@@ -655,6 +656,7 @@ export function chatbotUi(chatbot, parent, config) {
 						updateQuestionNavVisibility();
 						scheduleQuestionNavActiveUpdate();
 					}
+					sourcesButton(change);
 					_resizeAndScroll(false, true, false, msgElement, role == 'user');
 				}
 			} else if (change.action == 'readyToSend' && change.value !== undefined) {
@@ -665,26 +667,21 @@ export function chatbotUi(chatbot, parent, config) {
 				const msgObj= change.msgObj;
 				const streamElement= _map.get(msgObj);
 				if (!streamElement || !msgObj.content) return;
-				let answer= getContentStr(msgObj.content);
-				let sourcesMightHaveChanged= false;
-				if (msgObj.contentWithRefs && msgObj.refs) {
-					const refsMap= new Map();
-					answer= resolve(getContentStr(msgObj.content), msgObj.contentWithRefs, msgObj.refs, refsMap,
-						chatbot.config.refsBaseUrl);
-					_refsMapByMsgObj.set(msgObj, refsMap);
-					sourcesMightHaveChanged= true;
-				}
-				if (streamElement._a != answer) {
+				let answer= getContentText(msgObj, true);
+				if (streamElement._a != answer || change.property == 'refs') {
 					streamElement._a= answer;
-					renderMd(streamElement, answer);
+					const refsMap= new Map();
+					renderMd(streamElement, answer, change.msgObj.refs, refsBaseUrl, refsMap);
+					if (refsMap.size) {
+						_refsMapByMsgObj.set(msgObj, refsMap);
+						updateSourcesSidebar(change);
+					}
 				}
 				if (change.end && (change.property == 'content' || change.property == 'contentWithRefs')) {
 					streamElement.parentNode.className+=
 						' ' + CLASS_PREFIX + (change.property == 'content' ? '' : 'ref-') + 'done';
 				}
-				if (sourcesMightHaveChanged) {
-					updateSourcesSidebar(change);
-				}
+				sourcesButton(change);
 				_resizeAndScroll(false, true, false, streamElement, false);
 			} else if (change.action == 'sent') {
 				if (change.msgObj) {
@@ -720,9 +717,6 @@ export function chatbotUi(chatbot, parent, config) {
 
 				_map.set(_errorObj, retryBtn);
 				_resizeAndScroll(false, true, false, retryBtn);
-			}
-			if (change.action == 'add' || (change.action == 'updateProperty' && change.property == 'refs')) {
-				sourcesButton(change);
 			}
 			if (change.action == 'history') {
 				updateHistorySidebar();
@@ -818,7 +812,7 @@ export function chatbotUi(chatbot, parent, config) {
 					done.add(ref.h);
 					/** @type {HTMLAnchorElement} */ // @ts-ignore
 					const a= createElement(createElement(listElement, 'li'), 'a');
-					a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
+					a.href= refsBaseUrl + ref.h;
 					a.target= '_blank';
 					if (ref.b) {
 						a.title= ref.b;
@@ -850,7 +844,7 @@ export function chatbotUi(chatbot, parent, config) {
 			for (const ref of uncitedRefs) {
 				/** @type {HTMLAnchorElement} */ // @ts-ignore
 				const a= createElement(createElement(moreList, 'li'), 'a', 0, ref.t);
-				a.href= (chatbot.config.refsBaseUrl === undefined ? '' : chatbot.config.refsBaseUrl) + ref.h;
+				a.href= refsBaseUrl + ref.h;
 				a.target= '_blank';
 				if (ref.b) {
 					a.title= ref.b;
@@ -887,7 +881,7 @@ export function chatbotUi(chatbot, parent, config) {
 			const trimmed= str.trim();
 			if (_input.value.trim().endsWith(trimmed)) return;
 			for (const msgObj of chatbot.messages) {
-				if (msgObj.role === 'user' && trimmed == getContentStr(msgObj.content).trim()) return;
+				if (msgObj.role === 'user' && trimmed == getContentText(msgObj).trim()) return;
 			}
 
 			// Send?
@@ -910,10 +904,12 @@ export function chatbotUi(chatbot, parent, config) {
 	/**
 	 * @param {string} prop - Name of the UI configuration property.
 	 * @param {string|0} [defaultValue] - Value to return if the property is not set to a string.
+	 * @param {Object} [configuration] - Configuration object to read from; defaults to the UI configuration.
 	 * @returns {string} The configured string, or else the default value (empty string if no default is given).
 	 */
-	function getConfigString(prop, defaultValue) {
-		return config !== undefined && typeof config[prop] === 'string' ? config[prop] : (defaultValue ? defaultValue : '');
+	function getConfigString(prop, defaultValue, configuration) {
+		const c= configuration ? configuration : config;
+		return c !== undefined && typeof c[prop] === 'string' ? c[prop] : (defaultValue ? defaultValue : '');
 	}
 
 	/**
@@ -1079,19 +1075,6 @@ function getImagesFromClipboard(clipboardData) {
 		images.push(file);
 	}
 	return images;
-}
-
-/**
- * @param {chatbot.Content | undefined} content
- * @returns {string}
- */
-function getContentStr(content) {
-	if (typeof content === 'string') return content;
-	if (!content) return '';
-	for (const contentPart of content) {
-		if ('text' == contentPart.type && typeof contentPart.text === 'string') return contentPart.text;
-	}
-	return '';
 }
 
 async function addOptionsControl(form, beforeChild, optionsPromis, selected, optionsElements, chatScopeOptions) {

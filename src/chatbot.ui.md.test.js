@@ -1,56 +1,6 @@
-import { resolve, mdToHtml, renderMd } from './chatbot.ui.md.js';
+import { mdToHtml, renderMd } from './chatbot.ui.md.js';
 
 describe('chatbot.ui.md.test.js', () => {
-
-	test('resolve - basic', async () => {
-		const toTest= [
-
-			// Simple
-			['test.', 'test.', 'test.'],
-
-			// Whitespace from answer without references
-			['    test', 'test[[11]]', '    test<11>'],
-			['  aaa\nbbb\nccc ', '  aaa[[12]] [[0]]\n\nbbb\nccc [[12]] ', '  aaa<12><0>\nbbb\nccc<12> '],
-			['    aaa\tbbb', ' aaa [[11]] [[2]] bbb  ', '    aaa<11><2>\tbbb'],
-
-			// No or not complete matching references
-			[' aaa bbb ccc ', ' aaa[[3]] bbb[[2]] FAIL ccc[[1]] ', ' aaa<3> bbb<2> ccc '],
-
-			// Non existing reference
-			[' aaa bbb ccc ', ' aaa[[3]] bbb[[2222222]] ccc[[1]] ', ' aaa<3> bbb ccc<1> '],
-
-		];
-		const refs= [];
-		for (let i = 0; i <= 20; i++) {
-		    refs.push({h: i + '.html', t: 'Topic ' + i});
-		}
-		toTest.forEach(tuple => {
-			const resolved= resolve(tuple[0], tuple[1], refs, new Map());
-			const normalized= resolved.replace(/<a[^>]*?href="(\d+)[^<]*<\/a>/g, '<$1>');
-			expect(normalized).toBe(tuple[2]);
-		});
-	});
-
-	test('resolve - basic property testing', async () => {
-		const toTest= [
-			'test.',
-			'test[[1]].',
-			' aaa[[11]]   bbb[[0]]  ',
-			'\n \naaa[[1]] \n \n bbb[[2]] \n \n ',
-			' aaa[[11]]   bbb[[2]][[13]]  ccc[[2]][[11]] ',
-			'AAA\nBBB[[14]]!\n\nSee also[[2]]. ...',
-		];
-		const refs= [];
-		for (let i = 0; i <= 20; i++) {
-		    refs.push({h: i + '.html', t: 'Topic ' + i});
-		}
-		toTest.forEach(withRefs => {
-			const withoutRefs= withRefs.replace(/\[\[(\d+)\]\]/g, '');
-			const resolved= resolve(withoutRefs, withRefs, refs, new Map());
-			const reverted= resolved.replace(/\[\[(\d+)\]\]/g, '[[missed: $1]]').replace(/<a[^>]*?href="(\d+)[^<]*<\/a>/g, '[[$1]]');
-			expect(reverted).toBe(withRefs);
-		});
-	});
 
 	// mdToHtml: raw, non-interactive HTML string (used e.g. for clipboard/export).
 	test('mdToHtml - renders a code fence as a raw <pre> without interactive chrome', async () => {
@@ -62,8 +12,69 @@ describe('chatbot.ui.md.test.js', () => {
 		expect(html.includes('-c-code-copy'), 'no copy button').toBe(false);
 	});
 
+	const refs= [{h: 'a.html', t: 'A', i: 'img/a.png'}, {h: 'b.html', t: 'B'}];
+
+	test('mdToHtml - resolves inline references with refsBaseUrl', () => {
+	    const html= mdToHtml('foo[[1]] bar[[0]]', refs, 'https://html/', new Map());
+	    expect(html).toContain('href="https://html/b.html"');
+	});
+
+	test('mdToHtml - works without refsMap', () => {
+	    expect(() => mdToHtml('foo[[1]]', refs)).not.toThrow();
+	});
+
 	test('mdToHtml - renders basic Markdown to HTML', async () => {
 		expect(mdToHtml('**bold**').includes('<strong>bold</strong>'), 'bold').toBe(true);
+	});
+
+	test('mdToHtml - keeps a code fence closed when a ref follows it', () => {
+	    const html= mdToHtml('```js\nx\n```[[0]]\nafter', refs, 'https://html/');
+	    expectHtmlToContain('<pre><code');
+	    expectHtmlToContain('</code></pre>');
+	    expectHtmlToContain('href="https://html/a.html"');
+		expect(html.indexOf('</code></pre>')).toBeLessThan(html.indexOf('href="https://html/a.html'));
+
+		/** @type {(substring: string) => void} */
+		function expectHtmlToContain(substring) {
+		    expect(`No "${substring}" in received HTML: ${html}`).toContain(substring);
+		}
+	});
+
+	const refs20= Array.from({length: 21}, (_, i) => ({
+		h: `${i}.html`,
+		t: `Topic ${i}`
+	}));
+
+	test.each([
+		['test[[11]]', 'test<11>'],
+		['aaa[[12]]\t[[000]]  bbb ccc [[012]]', 'aaa<12>\t<0>  bbb ccc <12>'],
+		['aaa[[3]] bbb[[2222222]] ccc[[1]]', 'aaa<3> bbb[[2222222]] ccc<1>'],
+	])('mdToHtml - reverences: %j / %j', async (md, expected) => {
+		const html= mdToHtml(md, refs20);
+		const normalized= html
+			.replace(/(<p>)|(<[/]p>\s*)/g, '')
+			.replace(/<a[^>]*?href="(\d+)[^<]*<\/a>/g, '<$1>');
+		expect(normalized, 'html: ' + html).toBe(expected);
+	});
+
+	test.each([
+		'no reverences.',
+		'test[[1]].',
+		'aaa[[11]]   bbb[[0]]',
+		'aaa[[11]]   bbb[[222222]][[13]]\t\tccc[[2]][[11]]',
+		'AAA BBB[[14]]! See also[[2]]...'.repeat(20),
+	])('mdToHtml - reverences property testing: %j', async (md) => {
+		const html= mdToHtml(md, refs20);
+		const reverted= html
+			.replace(/(<p>)|(<[/]p>\s*)/g, '')
+			.replace(/<a[^>]*?href="(\d+)[^<]*<\/a>/g, '[[$1]]');
+		expect(reverted, 'html: ' + html).toBe(md);
+	});
+
+	test('mdToHtml - invalid links', async () => {
+		expect(mdToHtml('[click me](javascript:alert%28"Hello!"%29)')).not.toContain('<a');
+		const refs2= [{h: 'a.html', t: 'A', i: 'alert%28"Hello!"%29'}];
+		expect(mdToHtml('[[0]]', refs2, 'javascript:')).not.toContain('href="javascript:');
 	});
 
 	// renderMd: renders into a DOM element including the interactive copy button.

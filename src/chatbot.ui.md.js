@@ -1,11 +1,11 @@
 import markdownit from 'markdown-it';
 import { katex } from '@mdit/plugin-katex';
-import { createElement, CLASS_PREFIX, UNDEFINED } from './chatbot.ui.utility.js';
+import { CLASS_PREFIX } from './chatbot.ui.utility.js';
 import { SVG_COPY, SVG_DONE } from './chatbot.ui.icons.js';
 
 const DONE_DELAY= 2000; // in milliseconds; time of showing that copy to clipboard has been done
 
-const mdit= markdownit({html: true}).use(katex).use(function (md) {
+const mdit= markdownit({html: true}).use(resolveReferences).use(katex).use(function (md) {
 	const tagsRegExp= new RegExp('^\\s*<[/]?t(able|head|body|foot|r|h|d)\\b(\\s+(colspan|rowspan)\\s*=\\s*[\'"]\\d+[\'"])*\\s*>\\s*$', 'i');
 	const refsRegExp= new RegExp('^\\s*<[/]?(br|sub|sup|(a\\b(\\s+((class="[^"]*")|(href="[^"]+")|(target="[^"]*")|(title="[^"]*")|(ref="[^"]*")))*))\\s*>\\s*$', 'i');
 	md.core.ruler.push('sec', function(state) {
@@ -35,32 +35,40 @@ const mdit= markdownit({html: true}).use(katex).use(function (md) {
 });
 
 /**
- * Converts Markdown to a raw, non-interactive HTML string (no copy buttons or
- * other interactive chrome). Use it for clipboard/export or wherever a pure
- * string is needed. To render into the DOM with interactive elements, use
+ * Converts Markdown to a raw, non-interactive HTML string (no copy buttons or other interactive chrome). Use it for
+ * clipboard/export or wherever a pure string is needed. To render into the DOM with interactive elements, use
  * renderMd() instead.
+ *
  * @param {string} markdown
+ * @param {Array.<Record<string, unknown>>} [refs]
+ * @param {string} [refsBaseUrl]
+ * @param {Map} [refsMap]
  * @returns {string}
  */
-export function mdToHtml(markdown) {
+export function mdToHtml(markdown, refs, refsBaseUrl, refsMap) {
+	const env= {refs: refs, refsBaseUrl: refsBaseUrl, refsMap: refsMap ?? new Map()};
+
+	// Make sure that there is a line break between a code fence and a reference,
+	// otherwise the code fence will not be recognized as such.
+	const mdFixed= refs ? markdown.replace(/(\s```+)(\[\[\d+\]\])$/gm, '$1\n$2') : markdown;
 
 	// surround table tags with '\n\n...\n\n' so they become 'html_block', not 'html_inline' tokens
 	// TODO: surrounding needs to be reverted in code phrases and blocks
-	return mdit.render(markdown.replace(/<[/]?t(able|head|body|foot|r|h|d)\b[^>]*>/gi, '\n\n$&\n\n'))
+	return mdit.render(mdFixed.replace(/<[/]?t(able|head|body|foot|r|h|d)\b[^>]*>/gi, '\n\n$&\n\n'), env)
 
-				// workaround for references in a code block/fence
-				.replace(/(&lt;a\b(?:\s+(?:href|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s+class\s*=\s*&quot;((?:(?!&quot;)[^"])*)&quot;((?:\s+(?:href|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s*((?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;))(?=[^<]*<\/code\b)/g,
-						'$1 class="$2"$3$4')
-				.replace(/(&lt;a\b(?:\s+(?:class|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s+href\s*=\s*&quot;((?:(?!&quot;)[^"])*)&quot;((?:\s+(?:class|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s*((?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;))(?=[^<]*<\/code\b)/g,
-						'$1 href="$2"$3$4')
-				.replace(/(&lt;a\b(?:\s+(?:class|href|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s+target\s*=\s*&quot;((?:(?!&quot;)[^"])*)&quot;((?:\s+(?:class|href|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s*((?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;))(?=[^<]*<\/code\b)/g,
-						'$1 target="$2"$3$4')
-				.replace(/(&lt;a\b(?:\s+(?:class|href|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s+title\s*=\s*&quot;((?:(?!&quot;)[^"])*)&quot;((?:\s+(?:class|href|target|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s*((?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;))(?=[^<]*<\/code\b)/g,
-						'$1 title="$2"$3$4')
-				.replace(/(&lt;a\b(?:\s+(?:class|href|target|title)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s+ref\s*=\s*&quot;(\d*)&quot;((?:\s+(?:href|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s*((?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;))(?=[^<]*<\/code\b)/g,
-						'$1 ref="$2"$3$4')
-				.replace(/&lt;a\b((?:\s+(?:class|href|target|title|ref)\s*=\s*"[^"]*")*)\s*(?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;)(?=[^<]*<\/code\b)/g,
-						'<a$1></a>')
+		// workaround for references in a code block/fence
+		.replace(/(&lt;a\b(?:\s+(?:href|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s+class\s*=\s*&quot;((?:(?!&quot;)[^"])*)&quot;((?:\s+(?:href|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s*((?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;))(?=[^<]*<\/code\b)/g,
+				'$1 class="$2"$3$4')
+		.replace(/(&lt;a\b(?:\s+(?:class|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s+href\s*=\s*&quot;((?:(?!&quot;)[^"])*)&quot;((?:\s+(?:class|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s*((?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;))(?=[^<]*<\/code\b)/g,
+				'$1 href="$2"$3$4')
+		.replace(/(&lt;a\b(?:\s+(?:class|href|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s+target\s*=\s*&quot;((?:(?!&quot;)[^"])*)&quot;((?:\s+(?:class|href|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s*((?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;))(?=[^<]*<\/code\b)/g,
+				'$1 target="$2"$3$4')
+		.replace(/(&lt;a\b(?:\s+(?:class|href|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s+title\s*=\s*&quot;((?:(?!&quot;)[^"])*)&quot;((?:\s+(?:class|href|target|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s*((?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;))(?=[^<]*<\/code\b)/g,
+				'$1 title="$2"$3$4')
+		.replace(/(&lt;a\b(?:\s+(?:class|href|target|title)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s+ref\s*=\s*&quot;(\d*)&quot;((?:\s+(?:href|target|title|ref)\s*=\s*(?:"|&quot;)(?:(?!&quot;)[^"])*(?:"|&quot;))*)\s*((?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;))(?=[^<]*<\/code\b)/g,
+				'$1 ref="$2"$3$4')
+		.replace(/&lt;a\b((?:\s+(?:class|href|target|title|ref)\s*=\s*"[^"]*")*)\s*(?:>|&gt;)\s*&lt;\/a\s*(?:>|&gt;)(?=[^<]*<\/code\b)/g,
+				'<a$1></a>')
 
 }
 
@@ -72,80 +80,62 @@ export function mdToHtml(markdown) {
  * elements are never missed, also on every streaming update.
  * @param {Element} element
  * @param {string} markdown
+ * @param {Array.<Record<string, unknown>>} [refs]
+ * @param {string} [refsBaseUrl]
+ * @param {Map} [refsMap]
  */
-export function renderMd(element, markdown) {
-	element.innerHTML= mdToHtml(markdown);
+export function renderMd(element, markdown, refs, refsBaseUrl, refsMap) {
+	element.innerHTML= mdToHtml(markdown, refs, refsBaseUrl, refsMap);
 	addCodeCopyBtns(element);
 }
 
-const FIRST_REF_INDEX= 0; // 1 - if [[1]] refers to `refs[0]` and not `refs[1]`; 0 - otherwise ([[0]]: first reference)
+/** @param {import('markdown-it').MarkdownIt} md */
+function resolveReferences(md) {
+	md.inline.ruler.before('link', 'refs', (state, silent) => {
+		const refs = state.env.refs;
+		/** @type {Map} */ // @ts-ignore
+		const refsMap = state.env.refsMap;
+		if (!refs) return false;
+		const start = state.pos;
 
-/**
- * @param {string} answer
- * @param {string} answerWithRefs
- * @param {Array.<Record<string, unknown> & { h: string }>} refs
- * @param {Map} refsMap
- * @param {string} [baseUrl]
- * @param {string} [target]
- */
-export function resolve(answer, answerWithRefs, refs, refsMap, baseUrl, target) {
-	let result= '';
-	let rest= answer;
-	let restStart= 0;
-	let start= 0;
+		if (state.src.slice(start, start + 2) !== '[[') return false;
 
-	let nextRef= Object.keys(refsMap).length + 1;
-	const refRegex= /\s*\[\[(\d+)\]\]/g;
-	let match;
-	while ((match= refRegex.exec(answerWithRefs)) !== null) {
+		const match = /^\[\[(\d+)\]\]/.exec(
+			state.src.slice(start, state.posMax)
+		);
+		if (!match) return false;
 
-		// Same answer with and without references, ignoring trailing whitespace?
-		const prefix= answerWithRefs.substring(start, match.index);
-		const prefixTrimmed= prefix.trimStart();
-		start= match.index + match[0].length;
-		const restTrimmed= rest.trimStart();
-		if (prefixTrimmed.length > 0 && restTrimmed.indexOf(prefixTrimmed) != 0) break;
+		// Avoid generating nested links.
+		if (state.linkLevel > 0) return false;
 
-		// Trailing whitespace from the answer without references
-		const trailingWhitespaceLength= rest.length - restTrimmed.length;
-		if (prefixTrimmed.length > 0 && trailingWhitespaceLength > 0) {
-			result+= rest.substring(0, trailingWhitespaceLength);
-			rest= rest.substring(trailingWhitespaceLength);
-			restStart+= trailingWhitespaceLength;
+		const rawIndex = Number(match[1]);
+		if (!Number.isSafeInteger(rawIndex)) return false;
+
+		const ref = Array.isArray(refs) ? refs[rawIndex] : undefined;
+		if (!ref || typeof ref.h !== 'string') return false;
+		let displayIndex= refsMap.get(ref.h);
+		if (!displayIndex) {
+			displayIndex= refsMap.size + 1;
+			refsMap.set(ref.h, displayIndex);
 		}
 
-		// Text before the reference
-		result+= prefixTrimmed;
-		rest= rest.substring(prefixTrimmed.length);
-		restStart+= prefixTrimmed.length;
+		const href = md.normalizeLink((state.env.refsBaseUrl || '') + ref.h);
+		if (!md.validateLink(href)) return false;
 
-		// Append reference, if possible
-		const chunkNr= parseInt(match[1]) - FIRST_REF_INDEX;
-		if (chunkNr < 0 || chunkNr >= refs.length) continue;
-		const refChunk= refs[chunkNr];
-		let ref= refsMap.get(refChunk.h);
-		if (!ref) {
-			ref= nextRef;
-			refsMap.set(refChunk.h, ref);
-			nextRef++;
+		if (!silent) {
+			const token = state.push('link_open', 'a', 1);
+			token.attrs = [
+				['class', '-c-ref'],
+				['ref', String(displayIndex)],
+				['href', href],
+				['target', '_blank'],
+				['title', String(ref.t ?? '')]
+			];
+			state.push('link_close', 'a', -1);
 		}
-		const dummy= createElement(UNDEFINED, 'div');
-
-		/** @type {any} */
-		const element= createElement(dummy, 'a', 'ref');
-		element.setAttribute('ref', '' + ref);
-		element.href= (baseUrl === undefined ? '' : baseUrl) + refChunk.h;
-		element.target= target === undefined ? '_blank' : target;
-		element.title= refChunk.t;
-		result+= dummy.innerHTML;
-
-	}
-
-	// Make sure that there is a line break between a code fence and a reference,
-	// otherwise the code fence will not be recognized as such.
-	result= result.replace(/(``[`]+)(<a\b)/g, '$1\n$2');
-
-	return result + answer.substring(restStart);
+		state.pos = start + match[0].length;
+		return true;
+	});
 }
 
 /**

@@ -39,7 +39,7 @@ describe('chatbot.ui.test.js', () => {
 
 	test('code copy button', async () => {
 		document.body.innerHTML= '';
-		const codeBot= chatbot.chatbot({connector: codeBlockConnector});
+		const codeBot= chatbot.chatbot({connector: createConnector('```\nconsole.log("hello");\n```')});
 		ui.chatbotUi(codeBot, queryExpectedElement('body'), {});
 		await codeBot.send('hi');
 
@@ -63,6 +63,31 @@ describe('chatbot.ui.test.js', () => {
 		expectElement('.-c-title', 'Title element not found: .-c-title').not.toBeNull();
 		expectElement('.dummy-footer', 'Custom footer element not found: .dummy-footer').not.toBeNull();
 
+	});
+
+	[false, true].forEach(afterReset => {
+		test('sources button and sidebar' + (afterReset ? ' after reset' : ''), async () => {
+			document.body.innerHTML= '';
+			const refs= [ {h: 't1.html', t: 'Title 1'}, {h: 't2.html', t: 'Title 2'}, {h: 't3.html', t: 'Title 3'} ];
+			const bot= chatbot.chatbot( {connector: afterReset ? createConnector('.')
+				: createConnector('This[[1]]', refs)} );
+			ui.chatbotUi(bot, queryExpectedElement('body'), {});
+			if (afterReset) {
+				bot.reset([
+					{role: 'user', content: 'Hi'},
+					{role: 'assistant', content: 'This[[1]]', refs: refs},
+				]);
+				await bot.send('follow-up question');
+			} else {
+				await bot.send('hi');
+			}
+			expect(document.querySelector('.-c-sources'), '"Sources" sidebar closed').toBeNull();
+			const sourcesBtn= queryExpectedElement('.-c-role-assistant .-c-tbar .-c-btn-sources');
+			sourcesBtn.click();
+			expect(document.querySelector('.-c-sources'), '"Sources" sidebar opened').not.toBeNull();
+			expect(document.querySelectorAll('.-c-sources .-c-ref-').length).toBe(1);
+			expect(document.querySelectorAll('.-c-sources .-c-more li').length).toBe(2);
+		});
 	});
 
 });
@@ -160,7 +185,7 @@ describe('attaching images', () => {
 
 	test('attach controls with \'attach: true\'', () => {
 		newUi({ attach: true });
-		expectElement('.-c-form .-c-attach', 'attach button').not.toBeNull();
+		expectElement('.-c-form .-c-attach', 'attach button');
 		expect(picker().hidden, 'file picker hidden').toBe(true);
 		expect(picker().multiple, 'multiple files selectable without attachMax').toBe(true);
 		expect(picker().accept, 'default accept').toBe('image/*');
@@ -672,9 +697,7 @@ describe('attaching images', () => {
 
 });
 
-/**
- * @type {chatbot.Connector}
- */
+/** @type {chatbot.Connector} */
 function toUpperCaseConnector(callback, msg) {
 	return new Promise((resolve) => {
 		setTimeout(() => {
@@ -684,16 +707,19 @@ function toUpperCaseConnector(callback, msg) {
 	});
 }
 
-/**
- * @type {chatbot.Connector}
- */
-function codeBlockConnector(callback) {
-	return new Promise((resolve) => {
-		setTimeout(() => {
-			callback('```\nconsole.log("hello");\n```');
-			resolve();
-		}, 10);
-	});
+/** @type {(response: string, refs?: chatbot.References) => chatbot.Connector} */
+function createConnector(response, refs) {
+	return (callback) => {
+		return new Promise((resolve) => {
+			if (refs) {
+				setTimeout(() => callback(undefined, undefined, refs), 10);
+			}
+			setTimeout(() => {
+				callback(response);
+				resolve();
+			}, refs ? 20 : 10);
+		});
+	}
 }
 
 /**
