@@ -38,6 +38,7 @@ const ANIMATION_DELAY_DEFAULT= 16; // in milliseconds; 60hz ~ 16.67ms
  */
 export function chatbotUi(chatbot, parent, config) {
 	const refsBaseUrl= getConfigString('refsBaseUrl', '', chatbot.config);
+	const imagesBaseUrl= getConfigString('imagesBaseUrl', '', chatbot.config);
 
 	let _isSplash= true;
 	let _isReadyToSend= true;
@@ -607,7 +608,7 @@ export function chatbotUi(chatbot, parent, config) {
 						createElement(msgElement, 'p', 'wait');
 					} else {
 						const refsMap= new Map();
-						renderMd(msgElement, message, change.msgObj.refs, refsBaseUrl, refsMap);
+						renderMd(msgElement, message, change.msgObj.refs, refsBaseUrl, imagesBaseUrl, refsMap);
 						if (refsMap.size) {
 							_refsMapByMsgObj.set(change.msgObj, refsMap);
 						}
@@ -671,7 +672,7 @@ export function chatbotUi(chatbot, parent, config) {
 				if (streamElement._a != answer || change.property == 'refs') {
 					streamElement._a= answer;
 					const refsMap= new Map();
-					renderMd(streamElement, answer, change.msgObj.refs, refsBaseUrl, refsMap);
+					renderMd(streamElement, answer, change.msgObj.refs, refsBaseUrl, imagesBaseUrl, refsMap);
 					if (refsMap.size) {
 						_refsMapByMsgObj.set(msgObj, refsMap);
 						updateSourcesSidebar(change);

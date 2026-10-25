@@ -15,7 +15,7 @@ describe('chatbot.ui.md.test.js', () => {
 	const refs= [{h: 'a.html', t: 'A', i: 'img/a.png'}, {h: 'b.html', t: 'B'}];
 
 	test('mdToHtml - resolves inline references with refsBaseUrl', () => {
-	    const html= mdToHtml('foo[[1]] bar[[0]]', refs, 'https://html/', new Map());
+	    const html= mdToHtml('foo[[1]] bar[[0]]', refs, 'https://html/', undefined, new Map());
 	    expect(html).toContain('href="https://html/b.html"');
 	});
 
@@ -23,12 +23,18 @@ describe('chatbot.ui.md.test.js', () => {
 	    expect(() => mdToHtml('foo[[1]]', refs)).not.toThrow();
 	});
 
+	test('mdToHtml - resolves image src and keeps alt text', () => {
+	    const html= mdToHtml('![my alt](image0.png)', refs, '', 'https://img/', new Map());
+	    expect(html).toContain('src="https://img/img/a.png"');
+	    expect(html).toContain('alt="my alt"');
+	});
+
 	test('mdToHtml - renders basic Markdown to HTML', async () => {
 		expect(mdToHtml('**bold**').includes('<strong>bold</strong>'), 'bold').toBe(true);
 	});
 
 	test('mdToHtml - keeps a code fence closed when a ref follows it', () => {
-	    const html= mdToHtml('```js\nx\n```[[0]]\nafter', refs, 'https://html/');
+	    const html= mdToHtml('```js\nx\n```[[0]]\nafter', refs, 'https://html/', '');
 	    expectHtmlToContain('<pre><code');
 	    expectHtmlToContain('</code></pre>');
 	    expectHtmlToContain('href="https://html/a.html"');
@@ -74,7 +80,13 @@ describe('chatbot.ui.md.test.js', () => {
 	test('mdToHtml - invalid links', async () => {
 		expect(mdToHtml('[click me](javascript:alert%28"Hello!"%29)')).not.toContain('<a');
 		const refs2= [{h: 'a.html', t: 'A', i: 'alert%28"Hello!"%29'}];
-		expect(mdToHtml('[[0]]', refs2, 'javascript:')).not.toContain('href="javascript:');
+		expect(mdToHtml('[[0]]', refs2, 'javascript:', '')).not.toContain('href="javascript:');
+	});
+
+	test('mdToHtml - invalid image sources', async () => {
+		expect(mdToHtml('![alt image text](javascript:alert%28"Hello!"%29)')).not.toContain('<img');
+		const refs2= [{h: 'a.html', t: 'A', i: 'alert%28"Hello!"%29'}];
+		expect(mdToHtml('![alt image text](image0.jpg)', refs2, '', 'javascript:')).not.toContain('src="javascript:');
 	});
 
 	// renderMd: renders into a DOM element including the interactive copy button.

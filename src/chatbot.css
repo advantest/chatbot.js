@@ -602,14 +602,8 @@
 	margin: .5rem 0;
 }
 .-c-md img {
-	display: block;
 	max-width: 100%;
-	height: auto;
-	margin: .75rem 0;
-	padding: .5rem;
-	border: 1px solid var(--lm-border-color, #ccc);
-	border-radius: .375rem;
-	background: #fff;
+	border-radius: 12px;
 }
 .-c-md a:has(> img) {
 	display: inline-block;

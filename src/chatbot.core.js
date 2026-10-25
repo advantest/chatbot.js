@@ -42,6 +42,7 @@ const STREAM= true;
  * @property {Array.<Record<string, unknown>> | string | function} [options]
  * @property {'inmemory' | 'indexeddb' | History} [history]
  * @property {string} [refsBaseUrl=''] - Base URL prepended to reference hrefs when rendering cited sources and the sources sidebar.
+ * @property {string} [imagesBaseUrl=''] - Base URL prepended to reference image paths when rendering images in the Markdown of chatbot responses.
  */
 
 /**

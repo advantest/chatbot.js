@@ -41,6 +41,7 @@ Passed to `chatbot(config)`. Instead of an object, a plain string can be passed 
 | `history` | `'inmemory' \| 'indexeddb' \| History` | none | Enables persistence and the history sidebar. `'indexeddb'` stores chats in the browser's IndexedDB (survives reloads); `'inmemory'` keeps chats only for the current page life cycle; alternatively, pass a custom `History` implementation (see the `History` typedef in `chatbot.core.js`). |
 | `historyIndexeddbPrefix` | `string` | `''` | Prefix prepended to the IndexedDB database name. Only used when `history` is `'indexeddb'`. Useful to avoid collisions when multiple chatbot instances run on the same origin. |
 | `refsBaseUrl` | `string` | `''` | Base URL prepended to the `h` (href) field of every reference/source when rendering cited sources and the sources sidebar. |
+| `imagesBaseUrl` | `string` | `''` | Base URL prepended to the `i` (image path) field of a reference when rendering images included in the Markdown of chatbot responses. |
 
 
 ### Custom connector

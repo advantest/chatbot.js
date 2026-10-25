@@ -4,6 +4,7 @@ import { CLASS_PREFIX } from './chatbot.ui.utility.js';
 import { SVG_COPY, SVG_DONE } from './chatbot.ui.icons.js';
 
 const DONE_DELAY= 2000; // in milliseconds; time of showing that copy to clipboard has been done
+const IMAGE_FILENAME_REGEX = /^image(\d+)\.[a-zA-Z0-9]+$/;
 
 const mdit= markdownit({html: true}).use(resolveReferences).use(katex).use(function (md) {
 	const tagsRegExp= new RegExp('^\\s*<[/]?t(able|head|body|foot|r|h|d)\\b(\\s+(colspan|rowspan)\\s*=\\s*[\'"]\\d+[\'"])*\\s*>\\s*$', 'i');
@@ -34,6 +35,31 @@ const mdit= markdownit({html: true}).use(resolveReferences).use(katex).use(funct
 	});
 });
 
+const defaultImageRenderer= mdit.renderer.rules.image;
+
+/**
+ * Images are given as ![](image<n>.jpg) with <n> the index of the context item that provides in 'i' the URL of the
+ * image.
+ * @type {import('markdown-it').RendererRule}
+ */
+mdit.renderer.rules.image= (tokens, idx, options, env, self) => {
+	if (!env || !env.refs) return defaultImageRenderer(tokens, idx, options, env, self);
+	// TODO Link image and/or show it in sources?
+//	/** @type {Map} */ // @ts-ignore
+//	const refsMap = env.refsMap;
+	const token = tokens[idx];
+	const match = ('' + (token.attrGet('src') || '')).match(IMAGE_FILENAME_REGEX);
+	if (!match) return defaultImageRenderer(tokens, idx, options, env, self);
+	const imageIndex= Number(match[1]);
+	if (typeof imageIndex !== 'number') return defaultImageRenderer(tokens, idx, options, env, self);
+	const imageRef= env.refs[imageIndex];
+	if (!imageRef || typeof imageRef.i !== 'string') return defaultImageRenderer(tokens, idx, options, env, self);
+	const src= mdit.normalizeLink(typeof env.imagesBaseUrl === 'string' ? env.imagesBaseUrl : '') + imageRef.i;
+	if (!mdit.validateLink(src)) return defaultImageRenderer(tokens, idx, options, env, self);
+	token.attrSet('src', src);
+	return defaultImageRenderer(tokens, idx, options, env, self);
+};
+
 /**
  * Converts Markdown to a raw, non-interactive HTML string (no copy buttons or other interactive chrome). Use it for
  * clipboard/export or wherever a pure string is needed. To render into the DOM with interactive elements, use
@@ -42,11 +68,12 @@ const mdit= markdownit({html: true}).use(resolveReferences).use(katex).use(funct
  * @param {string} markdown
  * @param {Array.<Record<string, unknown>>} [refs]
  * @param {string} [refsBaseUrl]
+ * @param {string} [imagesBaseUrl]
  * @param {Map} [refsMap]
  * @returns {string}
  */
-export function mdToHtml(markdown, refs, refsBaseUrl, refsMap) {
-	const env= {refs: refs, refsBaseUrl: refsBaseUrl, refsMap: refsMap ?? new Map()};
+export function mdToHtml(markdown, refs, refsBaseUrl, imagesBaseUrl, refsMap) {
+	const env= {refs: refs, refsBaseUrl: refsBaseUrl, imagesBaseUrl: imagesBaseUrl, refsMap: refsMap ?? new Map()};
 
 	// Make sure that there is a line break between a code fence and a reference,
 	// otherwise the code fence will not be recognized as such.
@@ -82,10 +109,11 @@ export function mdToHtml(markdown, refs, refsBaseUrl, refsMap) {
  * @param {string} markdown
  * @param {Array.<Record<string, unknown>>} [refs]
  * @param {string} [refsBaseUrl]
+ * @param {string} [imagesBaseUrl]
  * @param {Map} [refsMap]
  */
-export function renderMd(element, markdown, refs, refsBaseUrl, refsMap) {
-	element.innerHTML= mdToHtml(markdown, refs, refsBaseUrl, refsMap);
+export function renderMd(element, markdown, refs, refsBaseUrl, imagesBaseUrl, refsMap) {
+	element.innerHTML= mdToHtml(markdown, refs, refsBaseUrl, imagesBaseUrl, refsMap);
 	addCodeCopyBtns(element);
 }
 

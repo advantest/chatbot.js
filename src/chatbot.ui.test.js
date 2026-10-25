@@ -65,6 +65,51 @@ describe('chatbot.ui.test.js', () => {
 
 	});
 
+	test.each([
+		['This is an image: ![](image0.jpg) ...', undefined, 'one.jpg', undefined],
+		['... ![my alt text](image1.jpg) ...', undefined, 'path/to/i2.jpg', 'my alt text'],
+		['![<hello>, \\[image\\]!!!](image1.jpg)', undefined, 'path/to/i2.jpg', '<hello>, [image]!!!'],
+		['![](image0.jpg)', 'https://example.com/assets/', 'https://example.com/assets/one.jpg', undefined],
+		['![alt text](image1.jpg)', 'https://example.com/img/', 'https://example.com/img/path/to/i2.jpg', 'alt text'],
+		['![foo](img1.jpg)', undefined, 'img1.jpg', 'foo'], // Do not resolve images that do not match "image<n>.<ext>"
+	])('response containing an image: %j', async (md, imagesBaseUrl, expectedSrc, expectedAlt) => {
+		document.body.innerHTML= '';
+		const refs= [ {h: 'target1.html', i: 'one.jpg'}, {h: 'target2.html', i: 'path/to/i2.jpg'} ];
+		const config= {connector: createConnector(md, refs)};
+		if (imagesBaseUrl) {
+			config.imagesBaseUrl= imagesBaseUrl;
+		}
+		const bot= chatbot.chatbot(config);
+		ui.chatbotUi(bot, queryExpectedElement('body'), {});
+		await bot.send('hi');
+		/** @type {HTMLImageElement} */ // @ts-ignore
+		const img= queryExpectedElement('.-c-role-assistant .-c-msg.-c-md img');
+		expect(img.getAttribute('src')).toBe(expectedSrc);
+		if (expectedAlt) {
+			expect(img.getAttribute('alt')).toBe(expectedAlt);
+		} else {
+			// in markdown-it `![](...)` becomes `<img src="..." alt>`,
+			// but `<img src="...">` or `<img src="..." alt="">` would also be okay
+			expect(!img.hasAttribute('alt') || !img.getAttribute('alt') || img.getAttribute('alt') === '').toBe(true);
+		}
+	});
+
+	test.each([
+		'Just a link: [just a link](image0.jpg)',
+		'[just a link](image0.jpg)',
+		'This is not an image: \\![just a link](image0.jpg)',
+		'Code phrase: `![](image0.jpg)` ...',
+		'Code block:\n\n```\n![](image0.jpg)\n```',
+	])('response should not contain an image: %j', async (md) => {
+		document.body.innerHTML= '';
+		const refs= [ {h: 'target.html', i: 'path/to/image.jpg'}, {h: 'target2.html', i: 'path/to/i2.jpg'} ];
+		const bot= chatbot.chatbot( {connector: createConnector(md, refs)} );
+		ui.chatbotUi(bot, queryExpectedElement('body'), {});
+		await bot.send('hi');
+		expect(document.querySelector('.-c-role-assistant .-c-msg.-c-md img'),
+			'image in response, where it should not').toBeNull();
+	});
+
 	[false, true].forEach(afterReset => {
 		test('sources button and sidebar' + (afterReset ? ' after reset' : ''), async () => {
 			document.body.innerHTML= '';
@@ -82,6 +127,7 @@ describe('chatbot.ui.test.js', () => {
 				await bot.send('hi');
 			}
 			expect(document.querySelector('.-c-sources'), '"Sources" sidebar closed').toBeNull();
+			/** @type {HTMLImageElement} */ // @ts-ignore
 			const sourcesBtn= queryExpectedElement('.-c-role-assistant .-c-tbar .-c-btn-sources');
 			sourcesBtn.click();
 			expect(document.querySelector('.-c-sources'), '"Sources" sidebar opened').not.toBeNull();
