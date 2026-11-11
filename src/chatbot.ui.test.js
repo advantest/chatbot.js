@@ -5,7 +5,7 @@ import { jest } from '@jest/globals';
 /**
  * @jest-environment jsdom
  */
-describe('chatbot.ui.test.js', () => {
+describe('chatbot.ui.test.js - basics', () => {
 
 	var bot;
 
@@ -141,7 +141,180 @@ describe('chatbot.ui.test.js', () => {
 /**
  * @jest-environment jsdom
  */
-describe('question navigation rail', () => {
+describe('chatbot.ui.test.js - error handling', () => {
+	beforeEach(() => {
+		document.body.innerHTML= '';
+	});
+
+	const ERROR_BTN_DEFAULTS= {retry: true, newChat: false, revert: false};
+	const ERROR_413_BTN_DEFAULTS= {retry: false, newChat: true, revert: false};
+	test.each([
+
+		// Defaults
+		[{}, undefined, 'Something went wrong.', ERROR_BTN_DEFAULTS],
+		[{}, 403, 'Something went wrong.', ERROR_BTN_DEFAULTS],
+		[{}, 413, 'Request is too large.', ERROR_413_BTN_DEFAULTS],
+
+		// Custom error messages - strings
+		[{ errorMsg: 'Oops' }, 404, 'Oops', ERROR_BTN_DEFAULTS],
+		[{ error404Msg: 'Not found.' }, 404, 'Not found.', ERROR_BTN_DEFAULTS],
+		[{ error404Msg: 'Not found.' }, 403, 'Something went wrong.', ERROR_BTN_DEFAULTS],
+		[{ errorMsg: 'Oops' }, 413, 'Request is too large.', ERROR_413_BTN_DEFAULTS],
+		[{ errorMsg: 'Oops', error41xMsg: '41x!', error413Msg: '413!' }, 413, '413!', ERROR_413_BTN_DEFAULTS],
+		[{ errorMsg: 'Oops', error41xMsg: '41x!', error403Msg: '403!' }, 413, '41x!', ERROR_413_BTN_DEFAULTS],
+		[{ errorMsg: 'Oops', error4xxMsg: '4xx!', error414Msg: '414!' }, 413, '4xx!', ERROR_413_BTN_DEFAULTS],
+
+		// Custom error messages - HTML
+		[{ errorMsg: {text: '<Oops>'} }, 403, '&lt;Oops&gt;', ERROR_BTN_DEFAULTS],
+		[{ errorMsg: {html: '<b>Oops</b>'}, error413Msg: '413!' }, 403, '<b>Oops</b>', ERROR_BTN_DEFAULTS],
+		[{ errorMsg: {html: '<b>Oops</b>'}, error413Msg: '413!' }, 413, '413!', ERROR_413_BTN_DEFAULTS],
+		[{ errorMsg: ':(', error413Msg: {text: '<Oops>'} }, 413, '&lt;Oops&gt;', ERROR_BTN_DEFAULTS],
+		[{ errorMsg: ':(', error413Msg: {text: '...', html: '<b>Oops</b>'} }, 413, '<b>Oops</b>', ERROR_BTN_DEFAULTS],
+
+		// Custom error messages - buttons
+		[{ errorMsg: '.', error413Msg: {text: '.', retryBtn: false} }, 403, '.', ERROR_BTN_DEFAULTS],
+		[{ errorMsg: '.', error413Msg: {text: '.', retryBtn: false} }, 413, '.', {retry: false, newChat: false, revert: false}],
+		[{ errorMsg: {text: '.', revertBtn: true} }, 403, '.', {retry: true, newChat: false, revert: true}],
+		[{ errorMsg: {text: '.', retryBtn: false, newChatBtn: true} }, 403, '.', {retry: false, newChat: true, revert: false}],
+		[{ errorMsg: {text: '.', newChatBtn: true, revertBtn: true} }, 403, '.', {retry: true, newChat: true, revert: true}],
+		[{ error413Msg: {text: '.', newChatBtn: true, revertBtn: true} }, 413, '.', {retry: true, newChat: true, revert: true}],
+
+	])('error message for config %O and status %s should be: %s - expected buttons: %O',
+			async (config, status, expectedMsgHtml, expectedBtns) => {
+		const error= status === undefined ? new Error('Error without HTTP status') : httpError(status);
+		const bot= chatbot.chatbot({ connector: () => Promise.reject(error) });
+		ui.chatbotUi(bot, document.body, config);
+		await bot.send('hi');
+		expect(queryExpectedElement('.-c-error p').innerHTML).toBe(expectedMsgHtml);
+		/** @type {Array<[btnExists: boolean, btnSelector: string, btnDesc: string]>} */
+		([
+			[expectedBtns.retry, '.-c-errorRetry', '"Retry" button in error panel'],
+			[expectedBtns.newChat, '.-c-errorNewChat', '"New Chat" button in error panel'],
+			[expectedBtns.revert, '.-c-errorRevert', '"Revert Last Message" button in error panel'],
+		]).forEach(([btnExists, btnSelector, btnDesc]) => {
+			const expectBtn= expectElement(btnSelector, btnDesc);
+			if (btnExists) {
+				expectBtn.not.toBeNull();
+			} else {
+				expectBtn.toBeNull();
+			}
+		});
+	});
+
+	test('on error, "Retry" resends the failed request', async () => {
+		let attempts= 0;
+		/** @type {chatbot.Connector} */
+		const connector= (callback) => {
+			attempts++;
+			if (attempts === 1) return Promise.reject(httpError(413));
+			callback('success', true);
+			return Promise.resolve();
+		};
+		const bot= chatbot.chatbot({ connector: connector });
+		ui.chatbotUi(bot, document.body, { error413Msg: { text: 'try again', retry: true } });
+
+		// First attempt => fail
+		await bot.send('hi');
+		expect(attempts).toBe(1);
+		expectElement('.-c-error', 'error panel').not.toBeNull();
+
+		// Retry => success
+		queryExpectedElement('.-c-errorRetry').click();
+		expect(bot.messages?.length).toBe(2);
+		expect(attempts).toBe(2);
+		expectElement('.-c-error', 'error panel').toBeNull();
+		expect(queryExpectedElement('.-c-role-assistant .-c-msg').textContent?.trim()).toBe('success');
+	});
+
+	test('on error, "New Chat" starts a new chat', async () => {
+		const bot= chatbot.chatbot({ connector: failingConnector([2], 413) });
+		ui.chatbotUi(bot, document.body, {});
+
+		// First question => success; second question => fail
+		await bot.send('question 1');
+		expectElement('.-c-error', 'error panel').toBeNull();
+		await bot.send('question 2');
+		expectElement('.-c-error', 'error panel').not.toBeNull();
+		expect(document.querySelectorAll('.-c-msg-p.-c-role-user').length, 'two user messages').toBe(2);
+
+		// "New Chat" => empty chat
+		queryExpectedElement('.-c-errorNewChat').click();
+		expectElement('.-c-error', 'error panel').toBeNull();
+		expectElement('.-c-msg', 'any message').toBeNull();
+		expect(bot.messages, 'no messages').toEqual([]);
+		expect(queryExpectedElement('.-c-widget').classList.contains('-c-splash'), 'splash screen').toBe(true);
+
+		// New chat works
+		await bot.send('new question');
+		expectElement('.-c-msg-p.-c-role-user', 'user message').not.toBeNull();
+		expectElement('.-c-msg-p.-c-role-assistant', 'response message').not.toBeNull();
+		expect(document.querySelectorAll('.-c-msg-p').length, 'one user messages and one response').toBe(2);
+		expect(queryExpectedElement('.-c-role-assistant .-c-msg').textContent?.trim()).toBe('answer 3');
+		// @ts-ignore
+		expect(queryExpectedElement('.-c-input').value).toBe('');
+	});
+
+	test('on error, "Revert Last Message" reverts the last user message and the failed response to it', async () => {
+		const bot= chatbot.chatbot({ connector: failingConnector([2], 500) });
+		ui.chatbotUi(bot, document.body, { errorMsg: { text: 'Oops', revertBtn: true } });
+
+		// First question => success; second question => fail
+		await bot.send('question 1');
+		expectElement('.-c-error', 'error panel').toBeNull();
+		await bot.send('question 2');
+		expectElement('.-c-error', 'error panel').not.toBeNull();
+		expect(document.querySelectorAll('.-c-msg-p.-c-role-user').length, 'two user messages').toBe(2);
+
+		// "Revert Last Message" => only first question and its answer remain; reverted question in input field
+		queryExpectedElement('.-c-errorRevert').click();
+		expectElement('.-c-error', 'error panel').toBeNull();
+		expect(bot.messages.map(msgObj => [msgObj.role, msgObj.content]))
+			.toEqual([['user', 'question 1'], ['assistant', 'answer 1']]);
+		expect(Array.from(document.querySelectorAll('.-c-role-user .-c-msg')).map(el => el.textContent))
+			.toEqual(['question 1']);
+		expect(Array.from(document.querySelectorAll('.-c-role-assistant .-c-msg')).map(el => el.textContent?.trim()))
+			.toEqual(['answer 1']);
+		/** @type {HTMLTextAreaElement} */ // @ts-ignore
+		const input= queryExpectedElement('.-c-form .-c-input');
+		expect(input.value, 'reverted question in input field').toBe('question 2');
+		/** @type {HTMLButtonElement} */ // @ts-ignore
+		const sendBtn= queryExpectedElement('.-c-form .-c-send');
+		expect(sendBtn.disabled, 'send button enabled').toBe(false);
+
+		// Resending works
+		await bot.send(input.value);
+		expect(Array.from(document.querySelectorAll('.-c-role-assistant .-c-msg')).map(el => el.textContent?.trim()))
+			.toEqual(['answer 1', 'answer 3']);
+	});
+
+	/**
+	 * @param {Array<number>} failingAttempts - 1-based numbers of the attempts that fail
+	 * @param {number} status - HTTP status of the failing attempts
+	 * @returns {chatbot.Connector} connector answering with "answer <attempt>" unless the attempt fails
+	 */
+	function failingConnector(failingAttempts, status) {
+		let attempts= 0;
+		return (callback) => {
+			attempts++;
+			if (failingAttempts.includes(attempts)) return Promise.reject(httpError(status));
+			callback('answer ' + attempts, true);
+			return Promise.resolve();
+		};
+	}
+
+	/** @type {(status: number) => Error} */
+	function httpError(status) {
+		const error= new Error('request failed');
+		error['http']= status;
+		return error;
+	}
+
+});
+
+/**
+ * @jest-environment jsdom
+ */
+describe('chatbot.ui.test.js - question navigation rail', () => {
 
 	async function ask(bot, n) {
 		for (let i= 1; i <= n; i++) {
@@ -217,7 +390,7 @@ describe('question navigation rail', () => {
 /**
  * @jest-environment jsdom
  */
-describe('attaching images', () => {
+describe('chatbot.ui.test.js - attaching images', () => {
 
 	/** @type {Array<chatbot.Content | undefined>} */
 	let sentMessages;

@@ -101,6 +101,7 @@ describe('chatbot.http.test.js', () => {
 		const err= await sendHttpRequest(URL, receiveFn([]), '{}', true).catch(e => e);
 		expect(err.message).toContain('404');
 		expect(err.message).toContain('Not Found');
+		expect(err.http).toBe(404);
 	});
 
 	for (const streamed of [false, true]) {

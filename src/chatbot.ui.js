@@ -2,14 +2,18 @@ import * as chatbot from './chatbot.core.js';
 import { getContentText } from './chatbot.core.js';
 import { createElement, addEvent, preventDefault, setClassName, UNDEFINED, CLASS_PREFIX } from './chatbot.ui.utility.js';
 import { mdToHtml, renderMd } from './chatbot.ui.md.js';
-import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD, SVG_TRY_AGAIN, SVG_ATTACH, SVG_REMOVE } from './chatbot.ui.icons.js';
+import { SVG_SEND, SVG_NEW, SVG_CLOSE, SVG_COPY, SVG_DONE, SVG_SIDEBAR, SVG_FOLD, SVG_TRY_AGAIN, SVG_ATTACH, SVG_REMOVE, SVG_REVERT } from './chatbot.ui.icons.js';
 import { Dropdown } from './lemonadejs.dropdown.js';
 
 const MAX_HEIGHT_OF_WIDGET_PERCENTAGE= 0.61;
 const UI_THROTTLE_DELAY= 100; // in milliseconds
 const DONE_DELAY= 2000; // in milliseconds; time of showing that an action like copy to clipboar has been done
+const NEW_CHAT_BUTTON_TEXT_DEFAULT= 'New chat';
 const ERROR_MESSAGE_DEFAULT= 'Something went wrong.';
+const ERROR_413_MESSAGE_DEFAULT= {text: 'Request is too large.', retryBtn: false, newChatBtn: true};
 const ERROR_RETRY_BUTTON_TEXT_DEFAULT= 'Retry';
+const ERROR_NEW_BUTTON_TEXT_DEFAULT= 'New Chat';
+const ERROR_REVERT_BUTTON_TEXT_DEFAULT= 'Revert Last Message';
 const HISTORY_FOOTER_DEFAULT= 'Your chats are saved locally in your browser\'s IndexedDB.';
 const QUESTION_NAV_THRESHOLD_DEFAULT= 4; // number of user questions before the navigation rail appears
 const ANIMATION_DELAY_DEFAULT= 16; // in milliseconds; 60hz ~ 16.67ms
@@ -29,6 +33,10 @@ const ANIMATION_DELAY_DEFAULT= 16; // in milliseconds; 60hz ~ 16.67ms
  *   - 'off': Disables auto-scrolling.
  * @property {() => ChatbotUi} focus
  */
+
+/** @typedef {string | ErrorMsgObj | ((chatbot: chatbot.Chatbot, error: Error) => ErrorMsgObj)} ErrorMsg */
+/** @typedef { ( { text: string } | { html: string } )
+ *             & { retryBtn?: boolean, newChatBtn?: boolean, revertBtn?: boolean} } ErrorMsgObj */
 
 /**
  * @param {chatbot.Chatbot} chatbot
@@ -88,7 +96,7 @@ export function chatbotUi(chatbot, parent, config) {
 	const _widget= createElement(parent, 'div', 'widget splash');
 	const newBtnToAdd= !config || config.newBtn !== false;
 	function addNewBtn(newBtnParent) {
-		const newBtn= createBtn(newBtnParent, 'new', SVG_NEW, 'New chat');
+		const newBtn= createBtn(newBtnParent, 'new', SVG_NEW, NEW_CHAT_BUTTON_TEXT_DEFAULT);
 		addEvent(newBtn, 'click', () => chatbot.reset());
 	}
 	let _historySidebar;
@@ -246,7 +254,6 @@ export function chatbotUi(chatbot, parent, config) {
 	const _input= createElement(form, 'textarea', 'input');
 
 	const _map= new Map();
-	const _errorObj= {};
 
 	function getElementOfLastMessage() {
 		for (let i= chatbot.messages.length - 1; i >= 0; i--) {
@@ -558,7 +565,8 @@ export function chatbotUi(chatbot, parent, config) {
 				_sourcesBtnByMsgObj= new Map();
 				clearQuestionNav();
 				showSourcesSidebar(false);
-				setClassName(_widget, 'widget splash');
+				setClassName(_widget, 'widget' + (change.value?.desc ? '' : ' splash'));
+				_updateSendButtonEnablement();
 			} else if (change.action == 'add' && change.msgObj) {
 				let skip= false;
 				if (_isSplash) {
@@ -698,26 +706,57 @@ export function chatbotUi(chatbot, parent, config) {
 				const errorPanel= createElement(_msgArea, 'div', 'error');
 
 				// Error message
-				const errorLabelText= getConfigString('errorMsg', ERROR_MESSAGE_DEFAULT);
-				const errorLabel= createElement(errorPanel, 'p', UNDEFINED, errorLabelText);
-				const errorLabelHtml= getConfigString('errorMsgHtml');
-				if (errorLabelHtml) {
-					errorLabel.innerHTML= errorLabelHtml;
+				const errorLabel= createElement(errorPanel, 'p');
+				const errorMsgObj= getErrorMsgObj(change.value);
+				if ('html' in errorMsgObj) {
+					errorLabel.innerHTML= errorMsgObj.html;
+				} else {
+					errorLabel.textContent= errorMsgObj.text;
 				}
 
-				// Retry button
-				const retryBtn=
-					createBtn(errorPanel, 'errorRetry', SVG_TRY_AGAIN, UNDEFINED, ERROR_RETRY_BUTTON_TEXT_DEFAULT);
-				addEvent(retryBtn, 'click', () => {
-					errorPanel.remove();
-					if (chatbot.messages[chatbot.messages.length - 1]?.role != 'user') {
-						chatbot.messages.pop();
-					}
-					chatbot.reset(chatbot.messages, true, chatbot.desc);
-				});
+				// "Retry" button
+				if (errorMsgObj.retryBtn !== false) {
+					const retryBtn=
+						createBtn(errorPanel, 'errorRetry', SVG_TRY_AGAIN, UNDEFINED, ERROR_RETRY_BUTTON_TEXT_DEFAULT);
+					addEvent(retryBtn, 'click', retryOrRevertFn());
+				}
 
-				_map.set(_errorObj, retryBtn);
-				_resizeAndScroll(false, true, false, retryBtn);
+				// "New Chat" button
+				if (errorMsgObj.newChatBtn === true) {
+					const newChatBtn=
+						createBtn(errorPanel, 'errorNewChat', SVG_NEW, UNDEFINED, ERROR_NEW_BUTTON_TEXT_DEFAULT);
+					addEvent(newChatBtn, 'click', () => chatbot.reset());
+				}
+
+				// "Edit Last Message" button
+				if (errorMsgObj.revertBtn === true) {
+					const revertBtn=
+						createBtn(errorPanel, 'errorRevert', SVG_REVERT, UNDEFINED, ERROR_REVERT_BUTTON_TEXT_DEFAULT);
+					addEvent(revertBtn, 'click', retryOrRevertFn(true));
+				}
+
+				// Scroll to error message
+				if (typeof errorPanel.scrollIntoView === 'function') {
+					errorPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				}
+
+				/** @type {(edit?: boolean) => () => void} */
+				function retryOrRevertFn(isRevert) {
+					return function() {
+						if (chatbot.messages[chatbot.messages.length - 1]?.role != 'user') {
+						    chatbot.messages.pop();
+						}
+						const lastMsgObj= chatbot.messages[chatbot.messages.length - 1];
+						if (isRevert && lastMsgObj?.role == 'user') {
+							_input.value= getContentText(lastMsgObj) + (_input.value.trim().length ? '\n' : '')
+								+ _input.value;
+							_resizeAndScroll(true);
+							chatbot.messages.pop();
+						}
+						chatbot.reset(chatbot.messages, !isRevert, chatbot.desc);
+					}
+				}
+
 			}
 			if (change.action == 'history') {
 				updateHistorySidebar();
@@ -732,6 +771,44 @@ export function chatbotUi(chatbot, parent, config) {
 		for (const optionElement of chatScopeOptions) {
 			optionElement.disabled= !_isSplash;
 		}
+	}
+
+	/** @type {(error: Error | undefined) => ErrorMsgObj} */
+	function getErrorMsgObj(error) {
+		const status= error && error['http'];
+		const configProperties= [];
+		if (Number.isInteger(status)) {
+			configProperties.push('error' + status + 'Msg');
+			if (status >= 10) {
+				configProperties.push('error' + Math.floor(status / 10) + 'xMsg');
+			}
+			if (status >= 100) {
+				configProperties.push('error' + Math.floor(status / 100) + 'xxMsg');
+			}
+		}
+		if (status != 413) {
+			configProperties.push('errorMsg');
+		}
+		let value;
+		for (const configProperty of configProperties) {
+			const candidate= config && config[configProperty]
+			if (typeof candidate === 'function') {
+				value= candidate(chatbot, error);
+			} else if (typeof candidate === 'string' || typeof candidate === 'object') {
+				value= candidate;
+			}
+			if (value) break; // found, if value is not null (object)
+		}
+		if (typeof value === 'string') {
+			if (status == 413) return { text: value, retryBtn: ERROR_413_MESSAGE_DEFAULT.retryBtn,
+				newChatBtn: ERROR_413_MESSAGE_DEFAULT.newChatBtn };
+			return { text: value };
+		}
+		if (value && typeof value === 'object') {
+			if (typeof value.html === 'string' || typeof value.text === 'string')  return { ...value };
+			return { ...value, text: status == 413 ? ERROR_413_MESSAGE_DEFAULT.text : ERROR_MESSAGE_DEFAULT };
+		}
+		return status == 413 ? ERROR_413_MESSAGE_DEFAULT : { text: ERROR_MESSAGE_DEFAULT };
 	}
 
 	function sourcesButton(change) {

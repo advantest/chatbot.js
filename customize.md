@@ -93,9 +93,8 @@ Passed as the third argument to `chatbotUi(chatbot, containerElement, uiConfig)`
 | `placeholderFollowup` | `string` | none | Placeholder text of the input field after the first message has been sent. Falls back to `placeholder` when not set. |
 | `footerHtml` | `string` | none | HTML shown below the input field, for example a disclaimer. |
 | `historyFooter` | `string` | `"Your chats are saved locally in your browser's IndexedDB."` | Note shown at the bottom of the history sidebar. Set to an empty string to hide it. |
-| `errorMsg` | `string` | `'Something went wrong.'` | Plain text message shown when sending a message fails. |
-| `errorMsgHtml` | `string` | none | HTML message shown when sending a message fails; takes precedence over `errorMsg` when set. |
-| `errorRetryBtnText` | `string` | `'Retry'` | Label of the button that resends the failed message. |
+| `errorMsg` | `ErrorMsg` | `'Something went wrong.'` | Message and buttons shown in the error panel when sending a message fails. See "Error panel" below. |
+| `error<status>Msg`, `error<NN>xMsg`, `error<N>xxMsg` | `ErrorMsg` | none | HTTP status-specific variants of `errorMsg`, for example `error413Msg`, `error41xMsg`, or `error4xxMsg`. See "Error panel" below. |
 
 
 ### Behavior
@@ -116,6 +115,67 @@ Passed as the third argument to `chatbotUi(chatbot, containerElement, uiConfig)`
 | `questionNavThreshold` | `number` | `4` | Minimum number of user questions before the navigation rail becomes visible. |
 
 
+### Error panel
+
+When sending a message fails, the failed response is removed and an error panel with a message and up to three
+buttons is shown below the last message:
+
+| Button | ID | Default text | Action |
+|---|---|---|---|
+| Retry | `errorRetry` | `'Retry'` | Resends the last user message. |
+| New chat | `errorNewChat` | `'New Chat'` | Discards the current chat and starts a new, empty one. |
+| Revert last message | `errorRevert` | `'Revert Last Message'` | Removes the last user message (and the failed response) from the chat and puts its text back into the input field, so it can be edited and resent. |
+
+The message and the buttons are configured via an `ErrorMsg`, which is one of the following:
+
+- a `string`: plain text message (with the default buttons),
+- an object `{ text?: string, html?: string, retryBtn?: boolean, newChatBtn?: boolean, revertBtn?: boolean }`:
+  - `text`: plain text message,
+  - `html`: HTML message; takes precedence over `text`,
+  - `retryBtn`: shows the "Retry" button; default `true`,
+  - `newChatBtn`: shows the "New Chat" button; default `false`,
+  - `revertBtn`: shows the "Revert Last Message" button; default `false`,
+
+  If neither `text` nor `html` is set, `'Something went wrong.'` is shown.
+- a function `(chatbot, error) => ErrorMsg`: called on each error to compute the message dynamically. Returning
+  `null`, `undefined`, or an empty string falls through to the next, less specific property (see below).
+
+If the error has an HTTP status (the built-in HTTP request sets `error.http` to the response status; a custom
+`connector` can do the same by rejecting with an `Error` that has an `http` property), the most specific configured
+property wins. For example, for status `413`, the properties are looked up in this order:
+
+1. `error413Msg`
+2. `error41xMsg`
+3. `error4xxMsg`
+4. `errorMsg` (not used for status `413`, see below)
+
+Errors without an HTTP status only use `errorMsg`.
+
+Status `413` (request too large, for example because of too many or too large attached images) is special: retrying
+the same request would fail again. Therefore, by default, the message `'Request is too large.'` is shown with the
+"New Chat" button instead of the "Retry" button, and `errorMsg` is ignored for it. When a status-specific property
+for `413` is set to a string, only the message text is replaced while these buttons are kept; when it is set to an
+object, the buttons are taken from the object (with the general defaults above).
+
+The buttons can be restyled like all other built-in buttons (see "Icons, hover text, and title attributes" below),
+for example via `errorRetryBtnText`, `errorNewChatBtn`, or `errorRevertHover`.
+
+Example:
+
+```js
+var uiConfig= {
+	errorMsg: { html: 'Something went wrong. <a href="status.html">Check the service status</a>.' },
+	error401Msg: { text: 'Your session has expired. Please reload the page.', retryBtn: false },
+	error5xxMsg: (chatbot, error) => ({
+		text: 'The server is unavailable (' + error['http'] + ').',
+		revertBtn: true
+	}),
+	error413Msg: 'Too many images attached.', // keeps the "New Chat" button and hides "Retry"
+	errorRetryBtnText: 'Try again'
+};
+```
+
+
 ### Icons, hover text, and title attributes
 
 Built-in buttons can be individually restyled. For a button with ID `<id>`, the following properties apply:
@@ -128,7 +188,8 @@ Built-in buttons can be individually restyled. For a button with ID `<id>`, the 
 
 Available IDs: `new` (New chat), `sidebar` (open history sidebar), `close` (close the top bar or the sources
 sidebar), `send` (send message), `copy` (copy a message; `doneBtn` overrides the icon shown briefly after a
-successful copy), `errorRetry` (retry after a failed send), `attach` (attach an image), `attachDel` (remove an
+successful copy), `errorRetry` (retry after a failed send), `errorNewChat` (start a new chat after a failed send),
+`errorRevert` (revert the last user message after a failed send), `attach` (attach an image), `attachDel` (remove an
 attached image).
 
 Example:

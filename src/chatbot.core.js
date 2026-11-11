@@ -183,7 +183,7 @@ export function chatbot(urlOrConfig) {
 	 * @param {References} [refs]
 	 * @param {string} [refsDelta]
 	 * @param {boolean} [refsDone]
-	 * @param {boolean} [reset]
+	 * @param {object} [reset]
 	 * @param {boolean} [init]
 	 * @param {Record<string, unknown>} [options]
 	 * @returns {MessageObject}
@@ -245,7 +245,7 @@ export function chatbot(urlOrConfig) {
 		}
 
 		if (reset) {
-			changes.push({ action: 'reset', msgObj: undefined });
+			changes.push({ action: 'reset', msgObj: undefined, value: reset });
 		}
 
 		if (done) {
@@ -326,13 +326,14 @@ export function chatbot(urlOrConfig) {
 	 * @param {ChatDescriptor} [desc]
 	 */
 	function _reset(chatbot, messages, send, desc) {
-		if ((!messages || !messages.length) && !chatbot.messages.length) return;
+		if (!messages && !chatbot.messages.length && !send && !desc) return;
 		if (chatbot.history && chatbot.desc) {
 			_messagesByDesc.set(chatbot.desc, chatbot.messages);
 		}
 		chatbot.desc= desc;
 		chatbot.messages= messages ? messages : [];
-		_apply(chatbot, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
+		const resetEventValue= {messages: messages, send: send, desc: desc};
+		_apply(chatbot, undefined, undefined, undefined, undefined, undefined, undefined, undefined, resetEventValue);
 		if (messages) {
 			for (const msgObj of messages) {
 				if (!msgObj.content) continue;

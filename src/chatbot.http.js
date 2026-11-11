@@ -48,8 +48,9 @@ export function sendHttpRequest(url, callback, postData, asStream) {
 
 		fetch(url, fetchOptions).then(response => {
 			if (!response.ok) {
-				const errorText= `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
-				reject(new Error(errorText));
+				const err= new Error(`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`);
+				err['http']= response.status;
+				reject(err);
 				return;
 			}
 			if (!response.body) {
