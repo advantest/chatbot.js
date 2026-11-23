@@ -442,6 +442,16 @@
 }
 
 /* Attached, add, options, send */
+.-c-root[data-dragover]::after {
+	content: "";
+	position: absolute;
+	inset: .25rem;
+	border: 2px dashed #3a83f7;
+	border-radius: 1rem;
+	background: rgba(58, 131, 247, .08);
+	pointer-events: none;
+	z-index: 20;
+}
 .-c-thumbs {
 	display: flex;
 	gap: .625rem;

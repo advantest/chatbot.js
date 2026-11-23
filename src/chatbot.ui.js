@@ -200,6 +200,7 @@ export function chatbotUi(chatbot, parent, config) {
 	// Attaching/uploading
 	const _attachSupported= getConfigBoolean('attach');
 	const _attachAccept= getConfigString('attachAccept', 'image/*');
+	const _attachAcceptTokens= _attachAccept.toLowerCase().split(',').map(token => token.trim()).filter(Boolean);
 	const _attachMax= getConfigNumber('attachMax', -1);
 	const _attachOnlyRequest= getConfigBoolean('attachOnlyRequest', true);
 	/** @type {chatbot.ContentArray} */
@@ -222,7 +223,7 @@ export function chatbotUi(chatbot, parent, config) {
 		addEvent(picker, 'change', () => {
 			if (!picker.files) return;
 			for (const file of picker.files) {
-				attachImageFile(file);
+				if (isImageAcceptable(file)) enqueueImageFile(file);
 			}
 			picker.value= '';
 		});
@@ -230,13 +231,56 @@ export function chatbotUi(chatbot, parent, config) {
 
 		// Paste images via Ctrl+V
 		addEvent(_widget, 'paste', (/** @type {ClipboardEvent} */ e) => {
-			const files= getImagesFromClipboard(e.clipboardData);
+			if (e.defaultPrevented) return;
+			const files= getAcceptedImages(e.clipboardData);
 			if (!files.length) return;
 			preventDefault(e);
-			for (const file of files) {
-				attachImageFile(file);
+			files.forEach(enqueueImageFile);
+		});
+
+		// Drop images on chat area:
+
+		// a) Highlight active drop target area
+		addEvent(_mainP, 'dragenter', (/** @type {DragEvent} */ e) => {
+			const transfer= getUnhandledFileDrag(e);
+			const accepts= !!transfer && canDropImage(transfer);
+			setDragOver(accepts);
+			if (accepts) {
+				preventDefault(e);
 			}
 		});
+		addEvent(_mainP, 'dragleave', (/** @type {DragEvent} */ e) => {
+			if (e.relatedTarget instanceof Node && _mainP.contains(e.relatedTarget)) return;
+			setDragOver(false);
+		});
+
+		// b) Prevent the browser from opening files dropped on the widget outside the drop target, but only attach
+		//    inside the chat area.
+		addEvent(_widget, 'dragover', (/** @type {DragEvent} */ e) => {
+			const transfer= getUnhandledFileDrag(e);
+			if (!transfer) {
+				setDragOver(false);
+				return;
+			}
+			const accepts= e.composedPath().includes(_mainP) && canDropImage(transfer);
+			setDragOver(accepts);
+			preventDefault(e);
+			transfer.dropEffect= accepts ? 'copy' : 'none';
+		});
+		addEvent(_widget, 'drop', (/** @type {DragEvent} */ e) => {
+			setDragOver(false);
+			const transfer= getUnhandledFileDrag(e);
+			if (!transfer) return;
+			preventDefault(e);
+			if (e.composedPath().includes(_mainP)) {
+				getAcceptedImages(transfer).forEach(enqueueImageFile);
+			}
+		});
+
+		/** @param {boolean} active */
+		function setDragOver(active) {
+			_mainP.toggleAttribute('data-dragover', active);
+		}
 
 	}
 	function clearAttached() {
@@ -1030,10 +1074,9 @@ export function chatbotUi(chatbot, parent, config) {
 	}
 
 	/**
-	 * @param {File} file
+	 * @param {File} file - An accepted image file.
 	 */
-	function attachImageFile(file) {
-		if (!isImageFileAcceptable(file)) return;
+	function enqueueImageFile(file) {
 		_attachQueue= _attachQueue
 			.then(() => {
 				return new Promise((resolve, reject) => {
@@ -1091,21 +1134,67 @@ export function chatbotUi(chatbot, parent, config) {
 	}
 
 	/**
+	 * @param {DragEvent} e
+	 * @returns {DataTransfer | null} The data transfer if the event is a file drag not yet handled by others.
+	 */
+	function getUnhandledFileDrag(e) {
+		const transfer= e.dataTransfer;
+		return !e.defaultPrevented && transfer && hasDraggedFiles(transfer) ? transfer : null;
+	}
+
+	/** @param {DataTransfer} transfer */
+	function hasDraggedFiles(transfer) {
+		return !!transfer.files?.length || Array.from(transfer.types || []).includes('Files')
+			|| Array.from(transfer.items || []).some(item => item.kind == 'file');
+	}
+
+	/** @param {DataTransfer} transfer - A drag known to contain files. */
+	function canDropImage(transfer) {
+		if (transfer.files?.length) {
+			return Array.from(transfer.files).some(isImageAcceptable);
+		}
+		// The file list is normally unavailable until drop. Some browsers expose only the 'Files' type.
+		const items= Array.from(transfer.items || []).filter(item => item.kind == 'file');
+		return items.length ? items.some(item => matchesImageFilter(item.type)) : matchesImageFilter('');
+	}
+
+	/** @param {DataTransfer | null} transfer */
+	function getAcceptedImages(transfer) {
+		if (!transfer) return [];
+		const files= Array.from(transfer.files || []).filter(isImageAcceptable);
+		if (files.length) return files;
+		for (const item of transfer.items || []) {
+			if (item.kind != 'file') continue;
+			const file= item.getAsFile();
+			if (file && isImageAcceptable(file)) {
+				files.push(file);
+			}
+		}
+		return files;
+	}
+
+	/**
 	 * @param {File} file
+	 * @returns {boolean} Whether the file is an image matching `attachAccept`.
+	 */
+	function isImageAcceptable(file) {
+		return !!file.type && matchesImageFilter(file.type, file.name);
+	}
+
+	/**
+	 * Tests the available metadata against `attachAccept`. During drag, the browser may withhold the
+	 * MIME type and filename; in that case, keep any filter that could match once the file is dropped.
+	 * @param {string} type - MIME type, or empty if unknown.
+	 * @param {string} [name] - File name, or `undefined` if unknown.
 	 * @returns {boolean}
 	 */
-	function isImageFileAcceptable(file) {
-		if (!file) return false;
-		const type= file.type.toLowerCase();
-		if (!type.startsWith('image/')) return false;
-		const name= file.name.toLowerCase();
-		for (const item of _attachAccept.split(',')) {
-			const accept= item.trim().toLowerCase();
-			if (accept == 'image/*'
-				|| (accept.startsWith('image/') && accept == type)
-				|| (accept.startsWith('.') && name.endsWith(accept))) return true;
-		}
-		return false;
+	function matchesImageFilter(type, name) {
+		const mime= type.toLowerCase();
+		if (mime && !mime.startsWith('image/')) return false;
+		const filename= name?.toLowerCase();
+		return _attachAcceptTokens.some(accept => accept == 'image/*'
+			|| (accept.startsWith('image/') && (!mime || accept == mime))
+			|| (accept.startsWith('.') && (filename === undefined || filename.endsWith(accept))));
 	}
 
 	/** @type {ChatbotUi & chatbot.Observer} */
@@ -1132,27 +1221,6 @@ export function chatbotUi(chatbot, parent, config) {
 	chatbot.observe(ui);
 	_resizeAndScroll(true);
 	return ui;
-}
-
-/**
- * @param {DataTransfer | null} clipboardData
- * @returns {Array<File>}
- */
-function getImagesFromClipboard(clipboardData) {
-	const images= [];
-	if (!clipboardData) return images;
-	for (const file of clipboardData.files || []) {
-		if (file.type.indexOf('image/') != 0) continue;
-		images.push(file);
-	}
-	if (images.length) return images;
-	for (const item of clipboardData.items || []) {
-		if (item.kind != 'file' || item.type.indexOf('image/') != 0) continue;
-		const file= item.getAsFile();
-		if (!file) continue;
-		images.push(file);
-	}
-	return images;
 }
 
 async function addOptionsControl(form, beforeChild, optionsPromis, selected, optionsElements, chatScopeOptions) {

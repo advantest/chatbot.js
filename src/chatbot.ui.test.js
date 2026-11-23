@@ -417,7 +417,7 @@ describe('chatbot.ui.test.js - attaching images', () => {
 		expect(picker().accept).toBe('.png,.jpg');
 	});
 
-	['file chooser', 'paste'].forEach(source => {
+	['file chooser', 'paste', 'drop'].forEach(source => {
 		test.each([
 			['image/png,image/jpeg', 'image/png', 'picture.bin', true],
 			['image/png,image/jpeg', 'image/jpeg', 'picture.bin', true],
@@ -439,8 +439,11 @@ describe('chatbot.ui.test.js - attaching images', () => {
 			const expectedCount= accepted ? 1 : 0;
 			if (source == 'file chooser') {
 				await choose([file], expectedCount);
-			} else {
+			} else if (source == 'paste') {
 				paste(clipboardWithItem(file));
+				await waitForAttachedCount(expectedCount);
+			} else {
+				drop({ items: [], files: [file] });
 				await waitForAttachedCount(expectedCount);
 			}
 			expect(attachedUrls()).toEqual(accepted ? [dataUrl('a', type)] : []);
@@ -466,11 +469,13 @@ describe('chatbot.ui.test.js - attaching images', () => {
 		expect(attachedUrls().sort()).toEqual([dataUrl('a'), dataUrl('b'), dataUrl('c'), dataUrl('d')]);
 	});
 
-	test('no duplicates via file chooser and paste', async () => {
+	test('no duplicates via file chooser, paste, and drop', async () => {
 		newUi({ attach: true });
 		await choose([imageFile('a'), imageFile('a')], 1);
 		await choose([imageFile('a')], 1);
 		paste(clipboardWithItem(imageFile('a')));
+		await waitForAttachedCount(1);
+		drop({ items: [], files: [imageFile('a')] });
 		await waitForAttachedCount(1);
 		expect(attachedUrls()).toEqual([dataUrl('a')]);
 		await choose([imageFile('b'), imageFile('a')], 2);
@@ -538,11 +543,304 @@ describe('chatbot.ui.test.js - attaching images', () => {
 		expect(attachedArea().hidden).toBe(true);
 	});
 
+	test('pasting a rejected image leaves accompanying text to the browser', async () => {
+		newUi({ attach: true, attachAccept: 'image/png' });
+		const event= paste({
+			types: ['Files', 'text/plain'],
+			items: [{ kind: 'string', type: 'text/plain' }],
+			files: [imageFile('rejected', 'image/jpeg')]
+		});
+		expect(event.defaultPrevented).toBe(false);
+		await waitForAttachedCount(0);
+		expect(attachedUrls()).toEqual([]);
+	});
+
+	test.each(['paste', 'drop'])('%s uses the actual file type when an item omits its MIME type', async source => {
+		newUi({ attach: true });
+		const transfer= {
+			items: [
+				{ kind: 'file', type: '', getAsFile: () => imageFile('a') },
+				{ kind: 'file', type: 'image/png', getAsFile: () => new File(['x'], 'x.png', { type: 'text/plain' }) }
+			],
+			files: []
+		};
+		const event= source == 'paste' ? paste(transfer) : drop(transfer);
+		expect(event.defaultPrevented).toBe(true);
+		await waitForAttachedCount(1);
+		expect(attachedUrls()).toEqual([dataUrl('a')]);
+	});
+
 	test('pasting an image is ignored without \'attach: true\'', async () => {
 		newUi();
 		const event= paste(clipboardWithItem(imageFile('a')));
 		expect(event.defaultPrevented).toBe(false);
 		expect(document.querySelector('.-c-form .-c-thumb'), 'nothing attached').toBeNull();
+	});
+
+	test('attach image via drop onto main area and its child elements', async () => {
+		newUi({ attach: true });
+
+		// directly onto main area
+		const e1= drop({ items: [], files: [imageFile('a')] }, dropTarget());
+		expect(e1.defaultPrevented, 'dropping an image prevents the default').toBe(true);
+		await waitForAttachedCount(1);
+		expect(attachedUrls()).toEqual([dataUrl('a')]);
+
+		// onto chat area via DataTransferItem
+		const e2= drop(clipboardWithItem(imageFile('b', 'image/jpeg')), queryExpectedElement('.-c-chat'));
+		expect(e2.defaultPrevented).toBe(true);
+		await waitForAttachedCount(2);
+
+		// onto input field
+		const e3= drop({ items: [], files: [imageFile('c')] }, input());
+		expect(e3.defaultPrevented).toBe(true);
+		await waitForAttachedCount(3);
+		expect(attachedUrls()).toEqual([dataUrl('a'), dataUrl('b', 'image/jpeg'), dataUrl('c')]);
+	});
+
+	test('dropping files on widget outside drop target prevents navigation without attaching', async () => {
+		newUi({ attach: true }, { history: 'inmemory' });
+		for (const outside of [queryExpectedElement('.-c-widget'), queryExpectedElement('.-c-history')]) {
+			const transfer= { types: ['Files'], items: [{ kind: 'file', type: 'image/png' }], files: [], dropEffect: '' };
+			drag('dragenter', transfer);
+			expect(dropTarget().hasAttribute('data-dragover')).toBe(true);
+			const enter= drag('dragenter', transfer, outside);
+			const over= drag('dragover', transfer, outside);
+			expect(dropTarget().hasAttribute('data-dragover'), 'moving outside clears the highlight before drop').toBe(false);
+			const dropEvt= drop({ items: [], files: [imageFile('a')] }, outside);
+			expect(enter.defaultPrevented, 'dragenter outside drop target not intercepted').toBe(false);
+			expect(over.defaultPrevented, 'dragover prevented on widget so browser does not open file').toBe(true);
+			expect(transfer.dropEffect, 'dropEffect set to none outside drop target').toBe('none');
+			expect(dropEvt.defaultPrevented, 'drop prevented on widget so browser does not open file').toBe(true);
+		}
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(false);
+		await waitForAttachedCount(0);
+		expect(attachedUrls()).toEqual([]);
+
+		// Events outside the widget (on body/window) are not intercepted
+		const outsideTransfer= { types: ['Files'], items: [{ kind: 'file', type: 'image/png' }], files: [] };
+		expect(drag('dragover', outsideTransfer, document.body).defaultPrevented).toBe(false);
+		expect(drop({ items: [], files: [imageFile('a')] }, document.body).defaultPrevented).toBe(false);
+	});
+
+	test('a child can handle the file drop without also attaching it to chat', async () => {
+		newUi({ attach: true });
+		const chat= queryExpectedElement('.-c-chat');
+		const transfer= { files: [imageFile('a')], dropEffect: 'link' };
+		drag('dragenter', transfer);
+		chat.addEventListener('dragover', e => e.preventDefault(), { once: true });
+		chat.addEventListener('drop', e => e.preventDefault(), { once: true });
+
+		drag('dragover', transfer, chat);
+		expect(transfer.dropEffect).toBe('link');
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(false);
+		expect(drop(transfer, chat).defaultPrevented).toBe(true);
+		await waitForAttachedCount(0);
+		expect(attachedUrls()).toEqual([]);
+	});
+
+	test.each(['items', 'files', 'items and files', 'partial items'])('drop all images via dataTransfer %s', async source => {
+		newUi({ attach: true });
+		const files= [imageFile('a'), new File(['x'], 'x.txt', { type: 'text/plain' }),
+			imageFile('b', 'image/jpeg'), imageFile('c')];
+		const items= files.map(file => clipboardWithItem(file).items[0]);
+		const event= drop({
+			items: source == 'files' ? [] : (source == 'partial items' ? items.slice(0, 1) : items),
+			files: source == 'items' ? [] : files
+		});
+		expect(event.defaultPrevented, 'dropping images prevents the default').toBe(true);
+		await waitForAttachedCount(3);
+		expect(attachedArea().hidden).toBe(false);
+		expect(attachedUrls(), 'all images attached once in order; non-images skipped')
+			.toEqual([dataUrl('a'), dataUrl('b', 'image/jpeg'), dataUrl('c')]);
+	});
+
+	test('dropping multiple images respects attachAccept, duplicates and attachMax', async () => {
+		newUi({ attach: true, attachAccept: 'image/png', attachMax: 2 });
+		const files= [imageFile('a'), imageFile('rejected', 'image/jpeg'),
+			imageFile('b'), imageFile('b'), imageFile('c')];
+		drop({ items: clipboardWithItem(files[0]).items, files: files });
+		await waitFor(() => attachedUrls()[1] === dataUrl('c'), () => `Unexpected: ${attachedUrls()}`);
+		await waitForAttachedCount(2);
+		expect(attachedUrls(), 'only the last two distinct accepted images remain').toEqual([dataUrl('b'), dataUrl('c')]);
+	});
+
+	test('unavailable dataTransfer items are skipped when dropping multiple images', async () => {
+		newUi({ attach: true });
+		drop({ items: [
+			{ kind: 'file', type: 'image/png', getAsFile: () => null },
+			...clipboardWithItem(imageFile('a')).items,
+			...clipboardWithItem(imageFile('b')).items
+		], files: [] });
+		await waitForAttachedCount(2);
+		expect(attachedUrls()).toEqual([dataUrl('a'), dataUrl('b')]);
+	});
+
+	test('dropping non-image files prevents default without attaching anything', async () => {
+		newUi({ attach: true });
+		const event= drop({ items: [], files: [new File(['x'], 'x.txt', { type: 'text/plain' })] });
+		expect(event.defaultPrevented, 'prevents browser from navigating to the file').toBe(true);
+		await waitForAttachedCount(0);
+		expect(attachedUrls()).toEqual([]);
+		expect(attachedArea().hidden).toBe(true);
+	});
+
+	test('dragging and dropping plain text is not intercepted', () => {
+		newUi({ attach: true });
+		const textTransfer= {
+			types: ['text/plain'],
+			items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }],
+			files: []
+		};
+		const enter= drag('dragenter', textTransfer);
+		const over= drag('dragover', textTransfer);
+		const dropEvt= drop(textTransfer, input());
+		expect(enter.defaultPrevented, 'dragenter not intercepted').toBe(false);
+		expect(over.defaultPrevented, 'dragover not intercepted').toBe(false);
+		expect(dropEvt.defaultPrevented, 'drop not intercepted').toBe(false);
+		expect(dropTarget().hasAttribute('data-dragover'), 'no data-dragover attribute').toBe(false);
+		expect(attachedUrls()).toEqual([]);
+	});
+
+	test('dragging and dropping an image is ignored without \'attach: true\'', () => {
+		newUi();
+		const transfer= { types: ['Files'], items: [{ kind: 'file', type: 'image/png' }], files: [] };
+		const enter= drag('dragenter', transfer);
+		const over= drag('dragover', transfer);
+		const dropEvt= drop(clipboardWithItem(imageFile('a')));
+		expect(enter.defaultPrevented).toBe(false);
+		expect(over.defaultPrevented).toBe(false);
+		expect(dropEvt.defaultPrevented).toBe(false);
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(false);
+		expect(document.querySelector('.-c-form .-c-thumb'), 'nothing attached').toBeNull();
+	});
+
+	test('drag-over highlight tracks entering, nested children, leaving, and dropping', async () => {
+		newUi({ attach: true });
+		const dragData= { types: ['Files'], items: [{ kind: 'file', type: 'image/png' }], files: [], dropEffect: '' };
+		const enterMain= drag('dragenter', dragData, dropTarget());
+		expect(enterMain.defaultPrevented).toBe(true);
+		expect(dropTarget().hasAttribute('data-dragover'), 'highlighted on dragenter').toBe(true);
+
+		const overChat= drag('dragover', dragData, queryExpectedElement('.-c-chat'));
+		expect(overChat.defaultPrevented).toBe(true);
+		expect(dragData.dropEffect).toBe('copy');
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(true);
+
+		// Moving into a nested child fires dragenter on child and dragleave on parent with relatedTarget = child
+		drag('dragenter', dragData, input());
+		drag('dragleave', dragData, dropTarget(), input());
+		expect(dropTarget().hasAttribute('data-dragover'), 'still highlighted while over nested child').toBe(true);
+
+		// Leaving drop target completely removes the highlight
+		drag('dragleave', dragData, input());
+		expect(dropTarget().hasAttribute('data-dragover'), 'highlight removed on dragleave').toBe(false);
+
+		// Dropping clears the highlight and attaches the image
+		drag('dragenter', dragData, dropTarget());
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(true);
+		drop({ items: [], files: [imageFile('a')] }, dropTarget());
+		expect(dropTarget().hasAttribute('data-dragover'), 'highlight removed on drop').toBe(false);
+		await waitForAttachedCount(1);
+		expect(attachedUrls()).toEqual([dataUrl('a')]);
+	});
+
+	test('drag-over highlight is shown when browser omits MIME type during drag', () => {
+		newUi({ attach: true });
+
+		// types only (e.g. Safari during dragover)
+		const typesOnly= { types: ['Files'], items: [], files: [], dropEffect: '' };
+		drag('dragenter', typesOnly);
+		expect(dropTarget().hasAttribute('data-dragover'), 'highlighted for Files type').toBe(true);
+		drag('dragover', typesOnly);
+		expect(typesOnly.dropEffect).toBe('copy');
+		drag('dragleave', typesOnly);
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(false);
+
+		// file item with empty MIME type
+		const unknownType= { types: ['Files'], items: [{ kind: 'file', type: '' }], files: [], dropEffect: '' };
+		drag('dragenter', unknownType);
+		expect(dropTarget().hasAttribute('data-dragover'), 'highlighted for unknown MIME type').toBe(true);
+		drag('dragover', unknownType);
+		expect(unknownType.dropEffect).toBe('copy');
+		drag('dragleave', unknownType);
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(false);
+	});
+	
+	test('drag-over highlight is not shown for non-image or unaccepted file types', () => {
+		newUi({ attach: true, attachAccept: 'image/png' });
+
+		// non-image file
+		const txtDrag= { types: ['Files'], items: [{ kind: 'file', type: 'text/plain' }], files: [], dropEffect: '' };
+		drag('dragenter', txtDrag);
+		expect(dropTarget().hasAttribute('data-dragover'), 'no highlight for text file').toBe(false);
+		const txtOver= drag('dragover', txtDrag);
+		expect(txtOver.defaultPrevented, 'dragover prevented so browser does not navigate').toBe(true);
+		expect(txtDrag.dropEffect).toBe('none');
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(false);
+
+		// unaccepted image MIME type
+		const jpgDrag= { types: ['Files'], items: [{ kind: 'file', type: 'image/jpeg' }], files: [], dropEffect: '' };
+		drag('dragenter', jpgDrag);
+		expect(dropTarget().hasAttribute('data-dragover'), 'no highlight for rejected image type').toBe(false);
+		const jpgOver= drag('dragover', jpgDrag);
+		expect(jpgOver.defaultPrevented).toBe(true);
+		expect(jpgDrag.dropEffect).toBe('none');
+	});
+
+	test('drag-over highlight is cleared when more precise data rules out the file', () => {
+		newUi({ attach: true, attachAccept: '.png' });
+		const transfer= { types: ['Files'], items: [{ kind: 'file', type: 'image/png' }], files: [], dropEffect: '' };
+		drag('dragenter', transfer);
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(true);
+
+		const withFiles= { ...transfer, files: [new File(['a'], 'picture.bin', { type: 'image/png' })] };
+		expect(drag('dragover', withFiles).defaultPrevented).toBe(true);
+		expect(withFiles.dropEffect).toBe('none');
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(false);
+	});
+
+	test('drag-over highlight is preserved across reset during drag', () => {
+		const bot= newUi({ attach: true });
+		const dragData= { types: ['Files'], items: [{ kind: 'file', type: 'image/png' }], files: [] };
+		drag('dragenter', dragData);
+		expect(dropTarget().hasAttribute('data-dragover')).toBe(true);
+		bot.reset();
+		expect(dropTarget().hasAttribute('data-dragover'), 'highlight preserved after reset').toBe(true);
+		drag('dragleave', dragData);
+		expect(dropTarget().hasAttribute('data-dragover'), 'highlight still removable').toBe(false);
+	});
+
+	test('drag-over highlight is removed when leaving drop target or canceling the drag', () => {
+		newUi({ attach: true }, { history: 'inmemory' });
+		const dragData= { types: ['Files'], items: [{ kind: 'file', type: 'image/png' }], files: [] };
+
+		function enterWithUnbalancedDepth() {
+			// Simulate browsers firing extra dragenter events (e.g. over textarea shadow DOM)
+			drag('dragenter', dragData, dropTarget());
+			drag('dragenter', dragData, input());
+			drag('dragenter', dragData, input());
+			expect(dropTarget().hasAttribute('data-dragover')).toBe(true);
+		}
+
+		// Moving to a child inside drop target (relatedTarget inside) keeps the highlight
+		enterWithUnbalancedDepth();
+		drag('dragleave', dragData, dropTarget(), input());
+		expect(dropTarget().hasAttribute('data-dragover'), 'kept when relatedTarget is inside').toBe(true);
+
+		// Moving to an element outside drop target removes the highlight immediately
+		drag('dragleave', dragData, input(), queryExpectedElement('.-c-history'));
+		expect(dropTarget().hasAttribute('data-dragover'), 'removed when relatedTarget is outside').toBe(false);
+
+		// Leaving the browser window or canceling (relatedTarget === null) removes the highlight immediately
+		enterWithUnbalancedDepth();
+		drag('dragleave', dragData, input());
+		expect(dropTarget().hasAttribute('data-dragover'), 'removed when relatedTarget is null').toBe(false);
+
+		// Dropping on widget outside drop target removes the highlight
+		enterWithUnbalancedDepth();
+		drop(dragData, queryExpectedElement('.-c-history'));
+		expect(dropTarget().hasAttribute('data-dragover'), 'removed on drop outside drop target').toBe(false);
 	});
 
 	test('\'attachMax: 1\': keeps only the latest image', async () => {
@@ -558,6 +856,9 @@ describe('chatbot.ui.test.js - attaching images', () => {
 		paste(clipboardWithItem(imageFile('c')));
 		await waitForAttachedCount(1);
 		expect(attachedUrls(), 'no duplicate').toEqual([dataUrl('c')]);
+		drop({ items: [], files: [imageFile('d')] });
+		await waitFor(() => attachedUrls()[0] === dataUrl('d'), () => `Unexpected: ${attachedUrls()}`);
+		expect(attachedUrls()).toEqual([dataUrl('d')]);
 	});
 
 	test('\'attachMax: 3\': keep the last three images; removes older ones', async () => {
@@ -683,12 +984,14 @@ describe('chatbot.ui.test.js - attaching images', () => {
 
 		afterEach(() => readAsDataURL.mockRestore());
 
-		test.each(['file chooser', 'paste'])('waits for all images via %s and prevents duplicate sends', async source => {
+		test.each(['file chooser', 'paste', 'drop'])('waits for all images via %s and prevents duplicate sends', async source => {
 			newUi({ attach: true });
 			if (source == 'file chooser') {
 				selectFiles([imageFile('a'), imageFile('b')]);
-			} else {
+			} else if (source == 'paste') {
 				paste({ items: [], files: [imageFile('a'), imageFile('b')] });
+			} else {
+				drop({ items: [], files: [imageFile('a'), imageFile('b')] });
 			}
 			type('describe');
 			const click= new MouseEvent('click', { bubbles: true, cancelable: true });
@@ -784,14 +1087,15 @@ describe('chatbot.ui.test.js - attaching images', () => {
 
 	/**
 	 * @param {Object} [config]
+	 * @param {Object} [botConfig]
 	 */
-	function newUi(config) {
+	function newUi(config, botConfig) {
 		document.body.innerHTML= '';
 		sentMessages= [];
 		const bot= chatbot.chatbot({ connector: (callback, msg, chatbot, options) => {
 			sentMessages.push(msg);
 			return toUpperCaseConnector(callback, msg, chatbot, options);
-		}});
+		}, ...botConfig });
 		ui.chatbotUi(bot, queryExpectedElement('body'), config || {});
 		return bot;
 	}
@@ -826,6 +1130,34 @@ describe('chatbot.ui.test.js - attaching images', () => {
 	}
 
 	/**
+	 * Simulates a drag event onto the drop target or a specified element.
+	 * @param {'dragenter' | 'dragover' | 'dragleave' | 'drop'} type
+	 * @param {Object} dataTransfer
+	 * @param {Element} [target]
+	 * @param {Element} [relatedTarget]
+	 * @returns {Event} the dispatched drag event
+	 */
+	function drag(type, dataTransfer, target, relatedTarget) {
+		const event= new Event(type, { bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+		if (relatedTarget !== undefined) {
+			Object.defineProperty(event, 'relatedTarget', { value: relatedTarget });
+		}
+		(target || dropTarget()).dispatchEvent(event);
+		return event;
+	}
+
+	/**
+	 * Simulates dropping files onto the drop target or a specified element.
+	 * @param {Object} dataTransfer
+	 * @param {Element} [target]
+	 * @returns {Event} the dispatched drop event
+	 */
+	function drop(dataTransfer, target) {
+		return drag('drop', dataTransfer, target);
+	}
+
+	/**
 	 * @param {string} text
 	 */
 	function type(text) {
@@ -854,6 +1186,10 @@ describe('chatbot.ui.test.js - attaching images', () => {
 	 */
 	function dataUrl(content, type) {
 		return 'data:' + (type || 'image/png') + ';base64,' + btoa(content);
+	}
+
+	function dropTarget() {
+		return queryExpectedElement('.-c-root');
 	}
 
 	/** @returns {HTMLInputElement} */
